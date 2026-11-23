@@ -1,0 +1,473 @@
+<!doctype html>
+<!--
+  Project Yumbu - Visual Airline Profit Calculator (with cargo)
+  Same model as src/profit_calculator.c, but interactive.
+  Open this file in any browser; no installation needed.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yumbu Profit Calculator</title>
+<style>
+  /* ---------- Colours (light + dark mode) ---------- */
+  :root {
+    --bg: #f5f3ee;  --panel: #ffffff; --text: #1c2420; --muted: #5f6a64;
+    --line: #ddd8ce; --grid: #ebe7de; --accent: #2e6a4e; --accent-text: #ffffff;
+    --profit: #2b7a4b; --loss: #b53b3b; --profit-bg: #e4f2ea; --loss-bg: #f8e5e3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121614; --panel: #1b211e; --text: #e7ebe9; --muted: #9aa59f;
+      --line: #2e3732; --grid: #262e2a; --accent: #74c49a; --accent-text: #0f1a14;
+      --profit: #6fcf97; --loss: #ef8080; --profit-bg: #1d3328; --loss-bg: #3a2222;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  header h1 { margin: 0; font-size: 1.6rem; letter-spacing: -0.01em; }
+  header p  { margin: 4px 0 20px; color: var(--muted); }
+
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+  @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px;
+  }
+  .panel h2 {
+    margin: 0 0 12px; font-size: 0.8rem; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted);
+  }
+  .group-title {
+    margin: 20px 0 10px; padding-top: 14px; border-top: 1px solid var(--line);
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  }
+  .hidden { display: none; }
+
+  /* ---------- Inputs ---------- */
+  .field { margin-bottom: 16px; }
+  .field > label { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 4px; }
+  .field .unit { font-weight: 400; color: var(--muted); }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .row input[type=number] { width: 92px; }
+  input[type=number], input[type=text] {
+    padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--text); font: inherit;
+  }
+  input[type=text] { width: 100%; }
+  button {
+    width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;
+    background: transparent; color: var(--text); font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+
+  /* Segmented control for the cargo mode */
+  .modes { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .modes label { margin: 0; }
+  .modes input { position: absolute; opacity: 0; pointer-events: none; }
+  .modes span {
+    display: block; text-align: center; padding: 7px 4px; cursor: pointer;
+    font-size: 0.85rem; font-weight: 600; line-height: 1.25;
+  }
+  .modes label + label span { border-left: 1px solid var(--line); }
+  .modes input:checked + span { background: var(--accent); color: var(--accent-text); }
+  .modes input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -3px; }
+  .hint { color: var(--muted); font-size: 0.8rem; margin: 6px 0 0; }
+
+  /* ---------- Results ---------- */
+  .verdict { border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; font-weight: 600; }
+  .verdict.good { background: var(--profit-bg); color: var(--profit); }
+  .verdict.bad  { background: var(--loss-bg);   color: var(--loss); }
+  .verdict small { display: block; font-weight: 400; color: var(--text); opacity: 0.8; }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  @media (max-width: 520px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .tile .label { font-size: 0.78rem; color: var(--muted); }
+  .tile .value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--profit); } .neg { color: var(--loss); }
+
+  svg { width: 100%; height: auto; display: block; }
+  .chart-note { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Project Yumbu: Airline Profit Calculator</h1>
+    <p>Move the sliders and watch where the airline breaks even.</p>
+  </header>
+
+  <div class="layout">
+    <!-- ======== INPUTS ======== -->
+    <section class="panel">
+      <h2>Inputs</h2>
+
+      <div class="field">
+        <label for="name">Airline name</label>
+        <input type="text" id="name" value="FlyYumbu">
+      </div>
+
+      <div class="field">
+        <label>Aircraft carries</label>
+        <div class="modes" role="radiogroup" aria-label="What the aircraft carries">
+          <label><input type="radio" name="mode" value="passengers" checked><span>Passengers</span></label>
+          <label><input type="radio" name="mode" value="belly"><span>Passengers + cargo</span></label>
+          <label><input type="radio" name="mode" value="freighter"><span>Cargo only</span></label>
+        </div>
+        <p class="hint">Switching mode loads an example for that mode.</p>
+      </div>
+
+      <!-- Each numeric input is a slider + number box pair, linked by data-field -->
+      <div id="passenger-fields">
+        <div class="group-title">Passengers</div>
+        <div class="field">
+          <label>Aircraft seats <span class="unit">seats</span></label>
+          <div class="row">
+            <input type="range"  data-field="seats" min="1" max="400" step="1">
+            <input type="number" data-field="seats" min="1" max="900" step="1">
+          </div>
+        </div>
+        <div class="field">
+          <label>Average ticket price <span class="unit">EUR</span></label>
+          <div class="row">
+            <input type="range"  data-field="ticketPrice" min="5" max="400" step="1">
+            <input type="number" data-field="ticketPrice" min="0.01" max="100000" step="0.5">
+          </div>
+        </div>
+        <div class="field">
+          <label>Load factor <span class="unit">% of seats sold</span></label>
+          <div class="row">
+            <input type="range"  data-field="loadFactor" min="0" max="100" step="0.5">
+            <input type="number" data-field="loadFactor" min="0" max="100" step="0.5">
+          </div>
+        </div>
+      </div>
+
+      <div id="cargo-fields">
+        <div class="group-title">Cargo</div>
+        <div class="field">
+          <label>Cargo capacity <span class="unit">kg per flight</span></label>
+          <div class="row">
+            <input type="range"  data-field="cargoCapacity" min="100" max="60000" step="100">
+            <input type="number" data-field="cargoCapacity" min="1" max="200000" step="100">
+          </div>
+        </div>
+        <div class="field">
+          <label>Cargo load factor <span class="unit">% of space filled</span></label>
+          <div class="row">
+            <input type="range"  data-field="cargoLoadFactor" min="0" max="100" step="0.5">
+            <input type="number" data-field="cargoLoadFactor" min="0" max="100" step="0.5">
+          </div>
+        </div>
+        <div class="field">
+          <label>Cargo revenue <span class="unit">EUR per kg</span></label>
+          <div class="row">
+            <input type="range"  data-field="cargoYield" min="0.1" max="10" step="0.05">
+            <input type="number" data-field="cargoYield" min="0.01" max="1000" step="0.05">
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title">Operations</div>
+      <div class="field">
+        <label>Operating cost per flight <span class="unit">EUR</span></label>
+        <div class="row">
+          <input type="range"  data-field="costPerFlight" min="500" max="60000" step="100">
+          <input type="number" data-field="costPerFlight" min="0" max="10000000" step="100">
+        </div>
+      </div>
+      <div class="field">
+        <label>Flights per day <span class="unit">per aircraft</span></label>
+        <div class="row">
+          <input type="range"  data-field="flightsPerDay" min="1" max="12" step="1">
+          <input type="number" data-field="flightsPerDay" min="1" max="24" step="1">
+        </div>
+      </div>
+
+      <button id="reset">Reset to example</button>
+    </section>
+
+    <!-- ======== RESULTS ======== -->
+    <section class="panel">
+      <h2 id="report-title">Financial report</h2>
+      <div id="verdict" class="verdict"></div>
+      <div class="tiles" id="tiles"></div>
+
+      <h2 id="chart-title">Profit per flight vs. load factor</h2>
+      <svg id="chart" viewBox="0 0 640 320" role="img" aria-label="Profit per flight against load factor"></svg>
+      <p class="chart-note" id="chart-note"></p>
+    </section>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   1. SETTINGS
+   ===================================================================== */
+const DAYS_PER_MONTH = 30;
+
+// Starting values for each mode. The passenger example matches the C program's test.
+const EXAMPLES = {
+  passengers: { seats: 180, ticketPrice: 55, loadFactor: 82,
+                cargoCapacity: 2000, cargoLoadFactor: 60, cargoYield: 1.5,
+                costPerFlight: 6800, flightsPerDay: 6 },
+  belly:      { seats: 180, ticketPrice: 55, loadFactor: 82,
+                cargoCapacity: 2000, cargoLoadFactor: 60, cargoYield: 1.5,
+                costPerFlight: 6800, flightsPerDay: 6 },
+  freighter:  { seats: 180, ticketPrice: 55, loadFactor: 82,
+                cargoCapacity: 20000, cargoLoadFactor: 70, cargoYield: 1.2,
+                costPerFlight: 15000, flightsPerDay: 2 }
+};
+
+/* =====================================================================
+   2. THE MODEL  (identical maths to calculate() in profit_calculator.c)
+   ===================================================================== */
+function calculate(inputs, mode) {
+  const hasPassengers = mode !== "freighter";
+  const hasCargo      = mode !== "passengers";
+
+  const loadFactor = hasPassengers ? inputs.loadFactor / 100 : 0;   // 82 -> 0.82
+  const cargoLF    = hasCargo ? inputs.cargoLoadFactor / 100 : 0;
+
+  const passengersPerFlight = hasPassengers ? inputs.seats * loadFactor : 0;
+  const passengerRevenue    = passengersPerFlight * inputs.ticketPrice;
+  const cargoKg             = hasCargo ? inputs.cargoCapacity * cargoLF : 0;
+  const cargoRevenue        = cargoKg * inputs.cargoYield;
+
+  const revenuePerFlight = passengerRevenue + cargoRevenue;
+  const profitPerFlight  = revenuePerFlight - inputs.costPerFlight;
+  const dailyProfit      = profitPerFlight * inputs.flightsPerDay;
+  const monthlyProfit    = dailyProfit * DAYS_PER_MONTH;
+
+  // Profit is a straight line in the load factor we break even on:
+  //   profit = slope * LF + intercept
+  // Passenger modes: LF = passenger load factor, cargo revenue is a fixed bonus.
+  // Freighter:       LF = cargo load factor.
+  let slope, intercept, currentLF;
+  if (hasPassengers) {
+    slope = inputs.seats * inputs.ticketPrice;
+    intercept = cargoRevenue - inputs.costPerFlight;
+    currentLF = loadFactor;
+  } else {
+    slope = inputs.cargoCapacity * inputs.cargoYield;
+    intercept = -inputs.costPerFlight;
+    currentLF = cargoLF;
+  }
+  const breakEven = Math.max(-intercept / slope, 0);   // 0 = cargo already covers the flight
+
+  return { passengersPerFlight, passengerRevenue, cargoKg, cargoRevenue,
+           revenuePerFlight, profitPerFlight, dailyProfit, monthlyProfit,
+           breakEven, slope, intercept, currentLF, hasPassengers, hasCargo };
+}
+
+/* =====================================================================
+   3. READING AND SYNCING THE INPUTS
+   ===================================================================== */
+let mode = "passengers";
+const values = { ...EXAMPLES[mode] };   // the current, valid input values
+
+// Put a value into both the slider and the number box of one field.
+function showValue(field, value) {
+  document.querySelectorAll(`[data-field="${field}"]`)
+          .forEach(el => { el.value = value; });
+}
+
+function loadExample() {
+  Object.assign(values, EXAMPLES[mode]);
+  for (const field in values) showValue(field, values[field]);
+}
+
+// When the user moves a slider or types a number:
+document.querySelectorAll("[data-field]").forEach(el => {
+  el.addEventListener("input", () => {
+    const value = parseFloat(el.value);
+    const min = parseFloat(el.min), max = parseFloat(el.max);
+    if (isNaN(value) || value < min || value > max) return;  // ignore invalid input
+    values[el.dataset.field] = value;
+    // Keep the partner control in step (the slider simply stops at its own max).
+    document.querySelectorAll(`[data-field="${el.dataset.field}"]`)
+            .forEach(other => { if (other !== el) other.value = value; });
+    update();
+  });
+});
+
+document.querySelectorAll('input[name="mode"]').forEach(radio => {
+  radio.addEventListener("change", () => {
+    mode = radio.value;
+    loadExample();
+    update();
+  });
+});
+
+document.getElementById("name").addEventListener("input", update);
+document.getElementById("reset").addEventListener("click", () => { loadExample(); update(); });
+
+/* =====================================================================
+   4. SHOWING THE RESULTS
+   ===================================================================== */
+const euro = new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const kg   = new Intl.NumberFormat("en-IE", { maximumFractionDigits: 0 });
+const pct  = x => (x * 100).toFixed(1) + " %";
+
+function tile(label, text, signed) {
+  const cls = signed === undefined ? "" : (signed >= 0 ? "pos" : "neg");
+  return `<div class="tile"><div class="label">${label}</div><div class="value ${cls}">${text}</div></div>`;
+}
+
+function update() {
+  const r = calculate(values, mode);
+  const name = document.getElementById("name").value.trim() || "Unnamed Airline";
+  document.getElementById("report-title").textContent = "Financial report: " + name;
+
+  // Show only the inputs this mode uses.
+  document.getElementById("passenger-fields").classList.toggle("hidden", !r.hasPassengers);
+  document.getElementById("cargo-fields").classList.toggle("hidden", !r.hasCargo);
+
+  // Result tiles.
+  const lfName = r.hasPassengers ? "passenger" : "cargo";
+  let tiles = "";
+  if (r.hasPassengers) {
+    tiles += tile("Passengers per flight", r.passengersPerFlight.toFixed(1));
+    tiles += tile("Passenger revenue", euro.format(r.passengerRevenue));
+  }
+  if (r.hasCargo) {
+    tiles += tile("Cargo carried", kg.format(r.cargoKg) + " kg");
+    tiles += tile("Cargo revenue", euro.format(r.cargoRevenue));
+  }
+  if (r.hasPassengers && r.hasCargo) tiles += tile("Total revenue", euro.format(r.revenuePerFlight));
+  tiles += tile("Profit per flight", euro.format(r.profitPerFlight), r.profitPerFlight);
+  tiles += tile("Daily profit", euro.format(r.dailyProfit), r.dailyProfit);
+  tiles += tile("Monthly profit (30 days)", euro.format(r.monthlyProfit), r.monthlyProfit);
+  tiles += tile(`Break-even ${lfName} load factor`, r.breakEven > 1 ? "Impossible" : pct(r.breakEven));
+  document.getElementById("tiles").innerHTML = tiles;
+
+  // Same verdicts as the C program.
+  const verdict = document.getElementById("verdict");
+  const Lf = lfName[0].toUpperCase() + lfName.slice(1);
+  if (r.breakEven > 1) {
+    verdict.className = "verdict bad";
+    verdict.innerHTML = "Cannot break even" +
+      "<small>Even a completely full aircraft doesn't cover the cost of a flight.</small>";
+  } else if (r.hasPassengers && r.hasCargo && r.breakEven === 0) {
+    verdict.className = "verdict good";
+    verdict.innerHTML = "Cargo pays for the flight" +
+      "<small>Cargo revenue alone covers the operating cost; every passenger is profit.</small>";
+  } else if (r.profitPerFlight >= 0) {
+    verdict.className = "verdict good";
+    verdict.innerHTML = "Profitable" +
+      `<small>${Lf} load factor is ${((r.currentLF - r.breakEven) * 100).toFixed(1)} points above break-even.</small>`;
+  } else {
+    verdict.className = "verdict bad";
+    verdict.innerHTML = "Loss-making" +
+      `<small>${Lf} load factor must rise by ${((r.breakEven - r.currentLF) * 100).toFixed(1)} points to break even.</small>`;
+  }
+
+  // Chart text.
+  document.getElementById("chart-title").textContent = `Profit per flight vs. ${lfName} load factor`;
+  document.getElementById("chart-note").textContent = r.hasPassengers
+    ? "Every point on the line is the same flight with a different share of seats sold" +
+      (r.hasCargo ? " (cargo held at your chosen level). " : ". ") +
+      "Left of the dashed line the flight loses money; right of it, it makes money."
+    : "Every point on the line is the same flight with a different share of its cargo space filled. " +
+      "Left of the dashed line the flight loses money; right of it, it makes money.";
+
+  drawChart(r, lfName);
+}
+
+/* =====================================================================
+   5. THE CHART  (plain SVG, no libraries)
+   ===================================================================== */
+const W = 640, H = 320;
+const PAD = { left: 76, right: 20, top: 20, bottom: 44 };
+
+// Pick a "nice" gridline spacing such as 1000, 2000 or 5000.
+function niceStep(range, targetLines) {
+  const rough = range / targetLines;
+  const power = Math.pow(10, Math.floor(Math.log10(rough)));
+  for (const m of [1, 2, 5, 10]) if (m * power >= rough) return m * power;
+}
+
+function drawChart(r, lfName) {
+  const profitAt = lf => r.slope * lf + r.intercept;   // profit for a load factor 0..1
+
+  // Y range: from profit when empty to profit when full, always including 0.
+  const low = Math.min(profitAt(0), 0), high = Math.max(profitAt(1), 0);
+  const step = niceStep(Math.max(high - low, 1), 5);
+  const yMin = Math.floor(low / step) * step;
+  const yMax = Math.ceil(high / step) * step || step;
+
+  // Convert data values to pixel positions.
+  const x = lf => PAD.left + lf * (W - PAD.left - PAD.right);
+  const y = p  => PAD.top + (yMax - p) / (yMax - yMin) * (H - PAD.top - PAD.bottom);
+
+  let svg = "";
+
+  // Horizontal gridlines with euro labels.
+  for (let p = yMin; p <= yMax + 1e-9; p += step) {
+    svg += `<line x1="${PAD.left}" x2="${W - PAD.right}" y1="${y(p)}" y2="${y(p)}"
+                  stroke="var(--${p === 0 ? "muted" : "grid"})" stroke-width="${p === 0 ? 1.5 : 1}"/>`;
+    svg += `<text x="${PAD.left - 8}" y="${y(p) + 4}" text-anchor="end" font-size="11"
+                  fill="var(--muted)">${euro.format(p)}</text>`;
+  }
+
+  // X axis labels every 20 %.
+  for (let lf = 0; lf <= 1.0001; lf += 0.2) {
+    svg += `<text x="${x(lf)}" y="${H - PAD.bottom + 18}" text-anchor="middle" font-size="11"
+                  fill="var(--muted)">${Math.round(lf * 100)}%</text>`;
+  }
+  const axisLabel = lfName === "cargo" ? "Cargo load factor (share of cargo space filled)"
+                                       : "Load factor (share of seats sold)";
+  svg += `<text x="${(PAD.left + W - PAD.right) / 2}" y="${H - 6}" text-anchor="middle"
+                font-size="12" fill="var(--muted)">${axisLabel}</text>`;
+
+  // The profit line: red below break-even, green above it.
+  const be = Math.min(r.breakEven, 1);
+  if (be > 0) {
+    svg += `<line x1="${x(0)}" y1="${y(profitAt(0))}" x2="${x(be)}" y2="${y(profitAt(be))}"
+                  stroke="var(--loss)" stroke-width="3" stroke-linecap="round"/>`;
+  }
+  if (be < 1) {
+    svg += `<line x1="${x(be)}" y1="${y(profitAt(be))}" x2="${x(1)}" y2="${y(profitAt(1))}"
+                  stroke="var(--profit)" stroke-width="3" stroke-linecap="round"/>`;
+  }
+
+  // Break-even marker (only if break-even is reachable and not at zero).
+  if (r.breakEven <= 1 && r.breakEven > 0) {
+    svg += `<line x1="${x(be)}" x2="${x(be)}" y1="${PAD.top}" y2="${H - PAD.bottom}"
+                  stroke="var(--muted)" stroke-dasharray="4 4"/>`;
+    const anchor = be > 0.75 ? "end" : "start";
+    const dx = be > 0.75 ? -6 : 6;
+    svg += `<text x="${x(be) + dx}" y="${PAD.top + 12}" text-anchor="${anchor}" font-size="12"
+                  fill="var(--text)">Break-even ${pct(r.breakEven)}</text>`;
+  }
+
+  // The current scenario. The line always rises to the right, so a label
+  // above-left or below-right of the dot never touches it.
+  const lf = r.currentLF;
+  const colour = r.profitPerFlight >= 0 ? "var(--profit)" : "var(--loss)";
+  const labelLeft = lf > 0.6;
+  svg += `<circle cx="${x(lf)}" cy="${y(r.profitPerFlight)}" r="6" fill="${colour}"
+                  stroke="var(--panel)" stroke-width="2"/>`;
+  svg += `<text x="${x(lf) + (labelLeft ? -10 : 10)}" y="${y(r.profitPerFlight) + (labelLeft ? -12 : 20)}"
+                text-anchor="${labelLeft ? "end" : "start"}" font-size="12" font-weight="600"
+                fill="${colour}">You: ${euro.format(r.profitPerFlight)}</text>`;
+
+  document.getElementById("chart").innerHTML = svg;
+}
+
+/* =====================================================================
+   6. START
+   ===================================================================== */
+loadExample();
+update();
+</script>
+</body>
+</html>
