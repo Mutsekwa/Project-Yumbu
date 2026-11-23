@@ -178,8 +178,15 @@ def summarise_itineraries(data):
 def collect(routes, days_ahead, max_searches):
     api_key = os.environ.get("SERPAPI_KEY")
     if not api_key:
-        sys.exit("No SERPAPI_KEY found. Create a free key at serpapi.com and set it first "
-                 "(see the top of this file), or use --manual.")
+        message = ("No SERPAPI_KEY found. Create a free key at serpapi.com and set it first "
+                   "(see the top of this file), or use --manual.")
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            # In the weekly job, warn instead of failing, so that the income data and
+            # distances collected in the same run are still saved.
+            print(f"::warning title=No fares collected::{message} On GitHub the key must be a "
+                  "repository secret named SERPAPI_KEY (Settings -> Secrets and variables -> Actions).")
+            return
+        sys.exit(message)
 
     used = searches_this_month()
     budget = min(max_searches, MONTHLY_LIMIT - used)
