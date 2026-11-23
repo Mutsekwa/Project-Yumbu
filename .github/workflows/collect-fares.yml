@@ -1,0 +1,48 @@
+# Runs the fare collector every Monday morning and commits the new fares.
+#
+# One-time setup on github.com:
+#   1. Repository -> Settings -> Secrets and variables -> Actions -> New repository secret
+#      Name: SERPAPI_KEY    Value: your key from serpapi.com
+#   2. Repository -> Settings -> Actions -> General -> Workflow permissions
+#      -> "Read and write permissions" -> Save
+# You can also start it by hand: Actions tab -> Collect fares -> Run workflow.
+
+name: Collect fares
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"     # every Monday 05:17 UTC (06:17 in Germany in winter)
+  workflow_dispatch:          # adds a "Run workflow" button
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: pip install -r python/requirements.txt
+
+      - name: Update income data
+        run: python python/fetch_income_data.py
+        continue-on-error: true
+
+      - name: Collect fares
+        run: python python/fare_collector.py
+        env:
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+
+      - name: Commit new data
+        run: |
+          git config user.name "fare-collector-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/fares/ data/routes.csv data/countries.csv
+          git diff --cached --quiet || git commit -m "Fare snapshot $(date -u +%F)"
+          git push
