@@ -1,0 +1,18 @@
+# Compiled programs (rebuild them from the .c files instead of storing them)
+*.o
+*.exe
+src/profit_calculator
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editor and OS clutter
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Downloaded data (re-downloaded automatically)
+data/cache/
