@@ -1,0 +1,828 @@
+<!doctype html>
+<!--
+  Project Yumbu - Fare & Route Dashboard
+
+  Turns the project's CSV files into charts:
+    data/routes.csv               which routes are tracked (region, distance, countries)
+    data/fares/fares.csv          fares collected by python/fare_collector.py
+    data/countries.csv            income per person (python/fetch_income_data.py)
+    data/results/route_results.csv  runs of python/route_profitability.py
+
+  How to open it with your data:
+    * On GitHub Pages it loads the files automatically.
+    * On your laptop, either run   python -m http.server   in the Project-Yumbu
+      folder and open http://localhost:8000/web/dashboard.html,
+      or open this file directly and use "Load CSV files" to pick the files.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yumbu Fare Dashboard</title>
+<style>
+  /* ---------- Colour tokens (validated chart palette, light + dark) ---------- */
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+    --warn-bg: #fff4d6; --warn-ink: #5c4300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --s5: #d55181; --s6: #0ca30c; --s7: #9085e9; --s8: #e66767;
+      --warn-bg: #3a2f12; --warn-ink: #fbe3a6;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #0ca30c; --s7: #9085e9; --s8: #e66767;
+    --warn-bg: #3a2f12; --warn-ink: #fbe3a6;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .page { max-width: 1200px; margin: 0 auto; padding: 24px 16px 56px; }
+  h1 { margin: 0; font-size: 1.55rem; letter-spacing: -0.01em; }
+  .sub { margin: 2px 0 14px; color: var(--ink-2); }
+
+  .status { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 14px; color: var(--ink-2); }
+  .btn {
+    padding: 6px 12px; border: 1px solid var(--axis); border-radius: 6px; background: var(--surface);
+    color: var(--ink); font: inherit; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--ink-2); }
+  .demo-banner {
+    background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: 10px 14px;
+    margin-bottom: 14px; font-weight: 600;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Filters: one row above everything they scope ---------- */
+  .filters { display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: end; margin-bottom: 18px; }
+  .filters label { display: block; font-size: 0.78rem; color: var(--ink-2); margin-bottom: 4px; }
+  .seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 7px; overflow: hidden; background: var(--surface); }
+  .seg button { border: 0; background: transparent; color: var(--ink); font: inherit; padding: 6px 11px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--axis); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+  select {
+    font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis);
+    border-radius: 6px; padding: 6px 8px;
+  }
+
+  /* ---------- Stat tiles ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 860px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; }
+  .tile .k { color: var(--ink-2); font-size: 0.8rem; }
+  .tile .v { font-size: 1.7rem; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 2px; }
+  .tile .n { color: var(--muted); font-size: 0.78rem; }
+
+  /* ---------- Chart cards ---------- */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; min-width: 0; }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { margin: 0; font-size: 1rem; }
+  .card .desc { margin: 2px 0 10px; color: var(--ink-2); font-size: 0.85rem; }
+  .empty { color: var(--muted); padding: 28px 0; text-align: center; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 8px; font-size: 0.82rem; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .key-rect { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .key-line { width: 16px; height: 2px; display: inline-block; border-radius: 1px; }
+  .key-dot  { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  svg { display: block; width: 100%; overflow: visible; }
+  svg text { font-family: inherit; }
+  .hit { fill: transparent; cursor: default; outline: none; }
+  .hit:focus-visible { stroke: var(--ink); stroke-width: 1; }
+
+  /* ---------- Tooltip ---------- */
+  #tip {
+    position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink);
+    border: 1px solid var(--ring); border-radius: 8px; padding: 8px 10px; font-size: 0.82rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12); max-width: 280px;
+  }
+  #tip .tv { font-weight: 650; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+  #tip .tl { color: var(--ink-2); }
+  #tip .row { display: flex; align-items: center; gap: 6px; }
+
+  /* ---------- Table ---------- */
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--ink-2); font-weight: 600; font-size: 0.8rem; }
+  .foot { color: var(--muted); font-size: 0.8rem; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Project Yumbu: Fare &amp; Route Dashboard</h1>
+  <p class="sub">How far does the same money take you? Kenyan and East African fares against low-cost markets elsewhere.</p>
+
+  <div class="status">
+    <span id="status">Loading data…</span>
+    <button class="btn" id="pick">Load CSV files</button>
+    <input type="file" id="files" accept=".csv" multiple class="hidden">
+    <button class="btn" id="demo">Show demo data</button>
+  </div>
+  <div class="demo-banner hidden" id="banner">
+    Synthetic demo data: invented fares and incomes for trying out the dashboard. Not real, do not cite.
+  </div>
+
+  <div class="filters">
+    <div>
+      <label>Compare Kenya with</label>
+      <div class="seg" id="compare"></div>
+    </div>
+    <div>
+      <label for="horizon">Booked ahead</label>
+      <select id="horizon"></select>
+    </div>
+    <div>
+      <label>Fare used</label>
+      <div class="seg" id="faretype"></div>
+    </div>
+    <div>
+      <label for="route">Route (fares over time)</label>
+      <select id="route"></select>
+    </div>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="grid">
+    <div class="card wide">
+      <h2>Fare per kilometre, by route</h2>
+      <p class="desc">Median one-way fare divided by straight-line distance, in US cents.</p>
+      <div class="legend" id="lg-perkm"></div>
+      <div id="c-perkm"></div>
+    </div>
+    <div class="card">
+      <h2>Fare against distance</h2>
+      <p class="desc">Each dot is one route's median one-way fare (USD).</p>
+      <div class="legend" id="lg-scatter"></div>
+      <div id="c-scatter"></div>
+    </div>
+    <div class="card">
+      <h2>Weeks of income for a return ticket</h2>
+      <p class="desc">2 × median one-way fare ÷ weekly GNI per person of the departure country.</p>
+      <div class="legend" id="lg-weeks"></div>
+      <div id="c-weeks"></div>
+    </div>
+    <div class="card wide">
+      <h2 id="t-time">Fares over time</h2>
+      <p class="desc">Each line is one booking horizon; a point is one weekly snapshot.</p>
+      <div class="legend" id="lg-time"></div>
+      <div id="c-time"></div>
+    </div>
+    <div class="card">
+      <h2>Simulator: break-even load factor</h2>
+      <p class="desc">Latest run of route_profitability.py per airline and route. Dashed line: 80%.</p>
+      <div id="c-be"></div>
+    </div>
+    <div class="card">
+      <h2>Simulator: cost of one flight</h2>
+      <p class="desc">Estimated fixed cost per flight by component (EUR).</p>
+      <div class="legend" id="lg-cost"></div>
+      <div id="c-cost"></div>
+    </div>
+    <div class="card wide">
+      <h2>Route summary</h2>
+      <p class="desc">The numbers behind the charts above, for the current filters.</p>
+      <div class="table-wrap" id="c-table"></div>
+    </div>
+  </div>
+
+  <p class="foot">Fares: SerpApi Google Flights snapshots and manual checks, one adult, economy, USD.
+    Income: World Bank GNI per capita (Atlas method). Simulator costs are model estimates.</p>
+</div>
+<div id="tip" class="hidden"></div>
+
+<script>
+/* =====================================================================
+   1. STATE
+   ===================================================================== */
+const state = {
+  routes: [], fares: [], countries: [], results: [],
+  compare: "Europe",     // which comparison region to show
+  horizon: "all",        // days_ahead value or "all"
+  fareType: "nonstop",   // "nonstop" or "cheapest"
+  route: null,
+  demo: false
+};
+const FOCUS = {
+  kenya_domestic:          { name: "Kenya domestic",           color: "var(--s1)" },
+  east_africa_crossborder: { name: "East Africa cross-border", color: "var(--s3)" },
+  comparison:              { name: "Comparison",               color: "var(--s2)" }
+};
+const COMPARE_REGIONS = ["Europe", "North America", "Asia", "Other Africa", "All"];
+const COST_KEYS = [
+  ["cost_fuel_eur", "Fuel"], ["cost_crew_eur", "Crew"], ["cost_maintenance_eur", "Maintenance"],
+  ["cost_aircraft_lease_eur", "Lease"], ["cost_landing_fee_eur", "Landing"],
+  ["cost_navigation_charges_eur", "Navigation"], ["cost_ground_handling_eur", "Handling"],
+  ["cost_overhead_eur", "Overhead"]
+];
+
+/* =====================================================================
+   2. LOADING CSV FILES
+   ===================================================================== */
+function parseCSV(text) {
+  const rows = []; let row = [], cell = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); cell = "";
+      if (row.length > 1 || row[0] !== "") rows.push(row);
+      row = [];
+    } else cell += c;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  const header = rows.shift() || [];
+  return rows.map(r => Object.fromEntries(header.map((h, i) => [h.trim(), (r[i] ?? "").trim()])));
+}
+
+// Work out which file is which from its columns, so file names don't matter.
+function store(rows) {
+  if (!rows.length) return null;
+  const cols = Object.keys(rows[0]);
+  if (cols.includes("observed_on")) { state.fares = rows; return "fares"; }
+  if (cols.includes("focus") && cols.includes("route_id")) { state.routes = rows; return "routes"; }
+  if (cols.includes("gni_per_capita_usd")) { state.countries = rows; return "countries"; }
+  if (cols.includes("break_even_load_factor")) { state.results = rows; return "results"; }
+  return null;
+}
+
+async function loadFromServer() {
+  const paths = ["../data/routes.csv", "../data/fares/fares.csv",
+                 "../data/countries.csv", "../data/results/route_results.csv"];
+  let found = 0;
+  for (const p of paths) {
+    try {
+      const r = await fetch(p, { cache: "no-store" });
+      if (r.ok && store(parseCSV(await r.text()))) found++;
+    } catch (e) { /* opened as a local file: the browser blocks this */ }
+  }
+  return found;
+}
+
+document.getElementById("pick").addEventListener("click", () => document.getElementById("files").click());
+document.getElementById("files").addEventListener("change", async e => {
+  const kinds = [];
+  for (const file of e.target.files) {
+    const kind = store(parseCSV(await file.text()));
+    kinds.push(kind ? `${file.name} (${kind})` : `${file.name} (not recognised)`);
+  }
+  state.demo = false;
+  document.getElementById("banner").classList.add("hidden");
+  setupFilters(); render();
+  document.getElementById("status").textContent = "Loaded " + kinds.join(", ") + ". " + statusText();
+});
+
+function statusText() {
+  const dates = state.fares.map(f => f.observed_on).sort();
+  const span = dates.length ? ` (${dates[0]} to ${dates[dates.length - 1]})` : "";
+  return `${state.routes.length} routes · ${state.fares.length} fare observations${span} · ` +
+         `${state.countries.length} countries · ${state.results.length} simulator runs`;
+}
+
+/* =====================================================================
+   3. DEMO DATA (clearly synthetic; for trying the dashboard only)
+   ===================================================================== */
+document.getElementById("demo").addEventListener("click", () => {
+  const R = [
+    ["NBO-MBA","KE","KE","Kenya domestic","kenya_domestic",423],["NBO-KIS","KE","KE","Kenya domestic","kenya_domestic",265],
+    ["NBO-EDL","KE","KE","Kenya domestic","kenya_domestic",270],["NBO-MYD","KE","KE","Kenya domestic","kenya_domestic",470],
+    ["NBO-UKA","KE","KE","Kenya domestic","kenya_domestic",450],["NBO-LAU","KE","KE","Kenya domestic","kenya_domestic",480],
+    ["NBO-EBB","KE","UG","East Africa cross-border","east_africa_crossborder",520],["NBO-DAR","KE","TZ","East Africa cross-border","east_africa_crossborder",680],
+    ["NBO-KGL","KE","RW","East Africa cross-border","east_africa_crossborder",755],["NBO-ZNZ","KE","TZ","East Africa cross-border","east_africa_crossborder",640],
+    ["JNB-CPT","ZA","ZA","Other Africa","comparison",1270],["LOS-ABV","NG","NG","Other Africa","comparison",520],
+    ["STN-DUB","GB","IE","Europe","comparison",470],["LTN-AMS","GB","NL","Europe","comparison",370],
+    ["BER-VIE","DE","AT","Europe","comparison",525],["BUD-BER","HU","DE","Europe","comparison",690],
+    ["BGY-NAP","IT","IT","Europe","comparison",665],["DAL-HOU","US","US","North America","comparison",385],
+    ["LAS-LAX","US","US","North America","comparison",380],["LAS-PHX","US","US","North America","comparison",410],
+    ["ATL-MCO","US","US","North America","comparison",650],["KUL-SIN","MY","SG","Asia","comparison",300],
+    ["BKK-CNX","TH","TH","Asia","comparison",590],["MNL-CEB","PH","PH","Asia","comparison",565],
+    ["BLR-HYD","IN","IN","Asia","comparison",500],["CGK-SIN","ID","SG","Asia","comparison",880]
+  ];
+  const perKm = { "Kenya domestic": 0.22, "East Africa cross-border": 0.34, "Other Africa": 0.13,
+                  "Europe": 0.09, "North America": 0.16, "Asia": 0.07 };
+  let seed = 7; const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  state.routes = R.map(([id, oc, dc, region, focus, km]) => ({
+    route_id: id, origin: id.slice(0, 3), destination: id.slice(4), origin_country: oc,
+    destination_country: dc, region, focus, distance_km: String(km), active: "yes" }));
+  state.fares = [];
+  const start = new Date("2026-09-07");
+  for (let w = 0; w < 10; w++) {
+    const day = new Date(start.getTime() + w * 7 * 864e5).toISOString().slice(0, 10);
+    for (const r of state.routes) for (const days of [14, 45]) {
+      const km = +r.distance_km;
+      const fare = Math.round(20 + km * perKm[r.region] * (days === 14 ? 1.15 : 0.95) * (0.8 + rand() * 0.45));
+      state.fares.push({ observed_on: day, route_id: r.route_id, days_ahead: String(days),
+        cheapest_usd: String(Math.round(fare * 0.92)), nonstop_usd: String(fare),
+        distance_km: r.distance_km, source: "demo" });
+    }
+  }
+  const gni = { KE: 2000, UG: 1000, TZ: 1200, RW: 1000, ZA: 6500, NG: 1900, GB: 50000, IE: 80000,
+                DE: 52000, AT: 56000, HU: 20000, IT: 38000, NL: 60000, US: 77000, MY: 12000,
+                SG: 70000, TH: 7000, PH: 4000, IN: 2500, ID: 4800 };
+  state.countries = Object.entries(gni).map(([iso2, v]) => ({ iso2, country: iso2, gni_per_capita_usd: String(v) }));
+  state.results = [
+    { airline: "DemoAir", origin: "NBO", destination: "MBA", break_even_load_factor: "0.82", fixed_cost_eur: "3300",
+      cost_fuel_eur: "900", cost_crew_eur: "390", cost_maintenance_eur: "500", cost_aircraft_lease_eur: "410",
+      cost_landing_fee_eur: "300", cost_navigation_charges_eur: "200", cost_ground_handling_eur: "390", cost_overhead_eur: "250", timestamp: "2026-11-01" },
+    { airline: "DemoAir", origin: "NBO", destination: "KIS", break_even_load_factor: "0.95", fixed_cost_eur: "2500",
+      cost_fuel_eur: "620", cost_crew_eur: "270", cost_maintenance_eur: "350", cost_aircraft_lease_eur: "290",
+      cost_landing_fee_eur: "300", cost_navigation_charges_eur: "120", cost_ground_handling_eur: "390", cost_overhead_eur: "190", timestamp: "2026-11-01" },
+    { airline: "DemoJet", origin: "STN", destination: "DUB", break_even_load_factor: "0.71", fixed_cost_eur: "6800",
+      cost_fuel_eur: "2100", cost_crew_eur: "800", cost_maintenance_eur: "1050", cost_aircraft_lease_eur: "900",
+      cost_landing_fee_eur: "790", cost_navigation_charges_eur: "260", cost_ground_handling_eur: "450", cost_overhead_eur: "450", timestamp: "2026-11-01" }
+  ];
+  state.demo = true;
+  document.getElementById("banner").classList.remove("hidden");
+  document.getElementById("status").textContent = "Demo data. " + statusText();
+  setupFilters(); render();
+});
+
+/* =====================================================================
+   4. CALCULATIONS
+   ===================================================================== */
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1;
+                       return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const num = v => (v === undefined || v === "" || v === null) ? null : +v;
+
+function fareOf(f) {
+  return state.fareType === "nonstop" ? num(f.nonstop_usd) : num(f.cheapest_usd);
+}
+function faresInScope() {
+  return state.fares.filter(f => state.horizon === "all" || f.days_ahead === state.horizon);
+}
+function routeVisible(r) {
+  if (r.focus !== "comparison") return true;
+  return state.compare === "All" || r.region === state.compare;
+}
+function gniOf(iso2) {
+  const c = state.countries.find(c => c.iso2 === iso2);
+  return c ? num(c.gni_per_capita_usd) : null;
+}
+
+// One summary row per route: median fare, cents per km, weeks of income.
+function routeStats() {
+  const fares = faresInScope();
+  return state.routes.filter(routeVisible).map(r => {
+    const values = fares.filter(f => f.route_id === r.route_id).map(fareOf).filter(v => v !== null);
+    const med = median(values);
+    const km = num(r.distance_km);
+    const gni = gniOf(r.origin_country);
+    return {
+      route: r, n: values.length, median: med, km,
+      centsPerKm: med !== null && km ? 100 * med / km : null,
+      weeks: med !== null && gni ? (2 * med) / (gni / 52) : null,
+      gni
+    };
+  });
+}
+
+/* =====================================================================
+   5. SMALL SVG HELPERS (labels are inserted as text, never as HTML)
+   ===================================================================== */
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(parent, x, y, s, attrs = {}) {
+  const t = el("text", { x, y, "font-size": 11, fill: "var(--muted)", ...attrs }, parent);
+  t.textContent = s;
+  return t;
+}
+function niceTicks(lo, hi, count = 5) {
+  if (hi <= lo) hi = lo + 1;
+  const raw = (hi - lo) / count, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * p).find(s => s >= raw);
+  const ticks = [];
+  for (let v = Math.floor(lo / step) * step; v <= hi + step * 0.001; v += step) ticks.push(+v.toFixed(10));
+  if (ticks[ticks.length - 1] < hi) ticks.push(ticks[ticks.length - 1] + step);
+  return ticks;
+}
+// Bar with only the data end rounded (r = 4), anchored at the baseline.
+function barPath(x, y, w, h, r = 4) {
+  if (w <= 0) return "";
+  r = Math.min(r, w, h / 2);
+  return `M${x},${y} h${w - r} a${r},${r} 0 0 1 ${r},${r} v${h - 2 * r} a${r},${r} 0 0 1 ${-r},${r} h${-(w - r)} z`;
+}
+function svgFor(container, height) {
+  container.textContent = "";
+  const width = Math.max(container.clientWidth, 280);
+  return [el("svg", { viewBox: `0 0 ${width} ${height}`, height, role: "img" }, container), width];
+}
+function empty(container, message) {
+  container.textContent = "";
+  const d = document.createElement("div"); d.className = "empty"; d.textContent = message;
+  container.appendChild(d);
+}
+function legend(id, items, kind) {
+  const box = document.getElementById(id); box.textContent = "";
+  for (const it of items) {
+    const s = document.createElement("span");
+    const k = document.createElement("i");
+    k.className = kind === "line" ? "key-line" : kind === "dot" ? "key-dot" : "key-rect";
+    k.style.background = it.color;
+    s.appendChild(k); s.appendChild(document.createTextNode(it.name));
+    box.appendChild(s);
+  }
+}
+
+/* ---------- Tooltip ---------- */
+const tip = document.getElementById("tip");
+function showTip(evt, value, lines, rows) {
+  tip.textContent = "";
+  if (value) { const v = document.createElement("div"); v.className = "tv"; v.textContent = value; tip.appendChild(v); }
+  for (const l of lines || []) { const d = document.createElement("div"); d.className = "tl"; d.textContent = l; tip.appendChild(d); }
+  for (const r of rows || []) {
+    const d = document.createElement("div"); d.className = "row";
+    const k = document.createElement("i"); k.className = "key-line"; k.style.background = r.color;
+    const b = document.createElement("b"); b.textContent = r.value;
+    const n = document.createElement("span"); n.className = "tl"; n.textContent = r.name;
+    d.append(k, b, n); tip.appendChild(d);
+  }
+  tip.classList.remove("hidden");
+  let x, y;
+  if (evt.clientX !== undefined && evt.type !== "focus") { x = evt.clientX; y = evt.clientY; }
+  else { const b = evt.target.getBoundingClientRect(); x = b.right; y = b.top; }
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(x + 14, window.innerWidth - w - 8) + "px";
+  tip.style.top = Math.max(8, Math.min(y + 14, window.innerHeight - h - 8)) + "px";
+}
+function hideTip() { tip.classList.add("hidden"); }
+function hover(node, fn) {
+  node.setAttribute("tabindex", "0");
+  node.addEventListener("pointermove", fn);
+  node.addEventListener("focus", fn);
+  node.addEventListener("pointerleave", hideTip);
+  node.addEventListener("blur", hideTip);
+}
+
+/* =====================================================================
+   6. CHARTS
+   ===================================================================== */
+
+// Horizontal bars grouped by region. groups: [{name, rows:[{label, value, color, tipValue, tipLines}]}]
+function hbar(container, groups, fmt, opts = {}) {
+  const rowH = 22, barH = 14, headH = 24, axisH = 22;
+  const nRows = groups.reduce((s, g) => s + g.rows.length, 0);
+  if (!nRows) return empty(container, opts.emptyText || "No data yet.");
+  const height = groups.length * headH + nRows * rowH + axisH;
+  const [svg, width] = svgFor(container, height);
+  const labelW = 74, valueW = 52, x0 = labelW, plotW = width - labelW - valueW;
+  const max = Math.max(...groups.flatMap(g => g.rows.map(r => r.value)), opts.minMax || 0);
+  const ticks = niceTicks(0, max, plotW < 260 ? 2 : 4), xMax = ticks[ticks.length - 1];
+  const sx = v => x0 + (v / xMax) * plotW;
+  const top = 0, bottom = height - axisH;
+
+  for (const t of ticks) {
+    el("line", { x1: sx(t), x2: sx(t), y1: top, y2: bottom, stroke: t === 0 ? "var(--axis)" : "var(--grid)" }, svg);
+    txt(svg, sx(t), bottom + 15, fmt(t), { "text-anchor": "middle" });
+  }
+  if (opts.refLine !== undefined) {
+    el("line", { x1: sx(opts.refLine), x2: sx(opts.refLine), y1: top, y2: bottom,
+                 stroke: "var(--ink-2)", "stroke-dasharray": "4 4" }, svg);
+  }
+  let y = 0;
+  for (const g of groups) {
+    if (!g.rows.length) continue;
+    txt(svg, 0, y + 16, g.name, { fill: "var(--ink-2)", "font-weight": 600, "font-size": 12 });
+    y += headH;
+    for (const r of g.rows) {
+      const by = y + (rowH - barH) / 2;
+      txt(svg, labelW - 8, y + 15, r.label, { "text-anchor": "end", fill: "var(--ink)" });
+      el("path", { d: barPath(x0, by, sx(Math.min(r.value, xMax)) - x0, barH), fill: r.color }, svg);
+      txt(svg, sx(Math.min(r.value, xMax)) + 6, y + 15, r.valueText ?? fmt(r.value), { fill: "var(--ink-2)" });
+      const hit = el("rect", { x: 0, y, width, height: rowH, class: "hit" }, svg);
+      hover(hit, e => showTip(e, r.tipValue, r.tipLines));
+      y += rowH;
+    }
+  }
+}
+
+function scatter(container, series, opts) {
+  const pts = series.flatMap(s => s.points);
+  if (!pts.length) return empty(container, opts.emptyText);
+  const height = 300, m = { l: 48, r: 14, t: 10, b: 38 };
+  const [svg, width] = svgFor(container, height);
+  const xt = niceTicks(0, Math.max(...pts.map(p => p.x)), 5), yt = niceTicks(0, Math.max(...pts.map(p => p.y)), 5);
+  const sx = v => m.l + v / xt[xt.length - 1] * (width - m.l - m.r);
+  const sy = v => height - m.b - v / yt[yt.length - 1] * (height - m.t - m.b);
+  for (const t of yt) {
+    el("line", { x1: m.l, x2: width - m.r, y1: sy(t), y2: sy(t), stroke: t === 0 ? "var(--axis)" : "var(--grid)" }, svg);
+    txt(svg, m.l - 6, sy(t) + 4, opts.yFmt(t), { "text-anchor": "end" });
+  }
+  for (const t of xt) txt(svg, sx(t), height - m.b + 15, opts.xFmt(t), { "text-anchor": "middle" });
+  txt(svg, (m.l + width - m.r) / 2, height - 4, opts.xTitle, { "text-anchor": "middle", fill: "var(--ink-2)" });
+  const placed = [];   // label boxes already drawn, so labels never overlap
+  for (const s of series) for (const p of s.points) {
+    el("circle", { cx: sx(p.x), cy: sy(p.y), r: 5, fill: s.color, stroke: "var(--surface)", "stroke-width": 2 }, svg);
+  }
+  for (const s of series) for (const p of s.points) {
+    if (!s.labelPoints) continue;
+    const box = { x: sx(p.x) + 8, y: sy(p.y) - 6, w: p.label.length * 6, h: 12 };
+    const clash = placed.some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h);
+    const dotClash = pts.some(q => q !== p && Math.abs(sx(q.x) - (box.x + box.w / 2)) < box.w / 2 + 5 && Math.abs(sy(q.y) - (box.y + 6)) < 11);
+    if (clash || dotClash || box.x + box.w > width) continue;   // the tooltip still has it
+    placed.push(box);
+    txt(svg, box.x, box.y + 10, p.label, { "font-size": 10 });
+  }
+  for (const s of series) for (const p of s.points) {
+    const hit = el("circle", { cx: sx(p.x), cy: sy(p.y), r: 12, class: "hit" }, svg);
+    hover(hit, e => showTip(e, p.tipValue, p.tipLines));
+  }
+}
+
+function lineChart(container, series, opts) {
+  const all = series.flatMap(s => s.points);
+  if (!all.length) return empty(container, opts.emptyText);
+  const height = 260, m = { l: 48, r: 18, t: 12, b: 30 };
+  const [svg, width] = svgFor(container, height);
+  const times = all.map(p => p.t);
+  let t0 = Math.min(...times), t1 = Math.max(...times);
+  if (t0 === t1) { t0 -= 3 * 864e5; t1 += 3 * 864e5; }
+  const yt = niceTicks(0, Math.max(...all.map(p => p.y)), 5);
+  const sx = t => m.l + (t - t0) / (t1 - t0) * (width - m.l - m.r);
+  const sy = v => height - m.b - v / yt[yt.length - 1] * (height - m.t - m.b);
+  for (const t of yt) {
+    el("line", { x1: m.l, x2: width - m.r, y1: sy(t), y2: sy(t), stroke: t === 0 ? "var(--axis)" : "var(--grid)" }, svg);
+    txt(svg, m.l - 6, sy(t) + 4, opts.yFmt(t), { "text-anchor": "end" });
+  }
+  const nTicks = Math.min(6, Math.max(2, Math.floor((width - m.l - m.r) / 90)));
+  for (let i = 0; i <= nTicks; i++) {
+    const t = t0 + (t1 - t0) * i / nTicks;
+    txt(svg, sx(t), height - m.b + 16, new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+        { "text-anchor": i === 0 ? "start" : i === nTicks ? "end" : "middle" });
+  }
+  for (const s of series) {
+    const p = s.points.slice().sort((a, b) => a.t - b.t);
+    if (p.length > 1 && !s.dotsOnly) {
+      el("path", { d: p.map((q, i) => `${i ? "L" : "M"}${sx(q.t)},${sy(q.y)}`).join(" "),
+                   fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+    }
+    for (const q of p) el("circle", { cx: sx(q.t), cy: sy(q.y), r: 4, fill: s.color, stroke: "var(--surface)", "stroke-width": 2 }, svg);
+  }
+  // Crosshair: snaps to the nearest observation date and lists every series there.
+  const dates = [...new Set(times)].sort((a, b) => a - b);
+  const cross = el("line", { y1: m.t, y2: height - m.b, stroke: "var(--ink-2)", "stroke-width": 1, visibility: "hidden" }, svg);
+  const overlay = el("rect", { x: m.l, y: m.t, width: width - m.l - m.r, height: height - m.t - m.b, class: "hit" }, svg);
+  const onMove = e => {
+    const box = svg.getBoundingClientRect();
+    const px = e.clientX !== undefined && e.type !== "focus" ? (e.clientX - box.left) * (width / box.width) : sx(dates[dates.length - 1]);
+    const t = dates.reduce((best, d) => Math.abs(sx(d) - px) < Math.abs(sx(best) - px) ? d : best, dates[0]);
+    cross.setAttribute("x1", sx(t)); cross.setAttribute("x2", sx(t)); cross.setAttribute("visibility", "visible");
+    const rows = series.map(s => {
+      const q = s.points.find(p => p.t === t);
+      return q ? { color: s.color, value: opts.yFmt(q.y), name: s.name } : null;
+    }).filter(Boolean);
+    showTip(e, new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }), [], rows);
+  };
+  hover(overlay, onMove);
+  overlay.addEventListener("pointerleave", () => cross.setAttribute("visibility", "hidden"));
+}
+
+function stackedBars(container, rows, keys, colors, fmt, emptyText) {
+  if (!rows.length) return empty(container, emptyText);
+  const rowH = 30, barH = 16, axisH = 22, height = rows.length * rowH + axisH;
+  const [svg, width] = svgFor(container, height);
+  const labelW = width < 420 ? 70 : 112, x0 = labelW, plotW = width - labelW - 56;
+  const totals = rows.map(r => keys.reduce((s, k) => s + (num(r[k[0]]) || 0), 0));
+  const ticks = niceTicks(0, Math.max(...totals), plotW < 260 ? 2 : 4), xMax = ticks[ticks.length - 1];
+  const sx = v => x0 + v / xMax * plotW, bottom = height - axisH;
+  for (const t of ticks) {
+    el("line", { x1: sx(t), x2: sx(t), y1: 0, y2: bottom, stroke: t === 0 ? "var(--axis)" : "var(--grid)" }, svg);
+    txt(svg, sx(t), bottom + 15, fmt(t), { "text-anchor": "middle" });
+  }
+  rows.forEach((r, i) => {
+    const y = i * rowH, by = y + (rowH - barH) / 2;
+    txt(svg, labelW - 8, y + rowH / 2 + 4, width < 420 ? r._short : r._label, { "text-anchor": "end", fill: "var(--ink)" });
+    let acc = 0;
+    const segs = keys.map(([k]) => num(r[k]) || 0);
+    const last = segs.map(v => v > 0).lastIndexOf(true);
+    segs.forEach((v, j) => {
+      if (v <= 0) return;
+      const xa = sx(acc), w = sx(acc + v) - xa - (j === last ? 0 : 2);   // 2px surface gap
+      const node = j === last ? el("path", { d: barPath(xa, by, w, barH), fill: colors[j] }, svg)
+                              : el("rect", { x: xa, y: by, width: Math.max(w, 0.5), height: barH, fill: colors[j] }, svg);
+      const hit = el("rect", { x: xa, y: y, width: sx(acc + v) - xa, height: rowH, class: "hit" }, svg);
+      hover(hit, e => showTip(e, fmt(v), [`${keys[j][1]} · ${r._label}`, `${Math.round(100 * v / totals[i])}% of ${fmt(totals[i])}`]));
+      acc += v;
+    });
+    txt(svg, sx(acc) + 6, y + rowH / 2 + 4, fmt(totals[i]), { fill: "var(--ink-2)" });
+  });
+}
+
+/* =====================================================================
+   7. RENDERING EVERYTHING FOR THE CURRENT FILTERS
+   ===================================================================== */
+const cents = v => `${v.toFixed(v < 10 ? 1 : 0)}¢`;
+const usd = v => `$${Math.round(v).toLocaleString("en")}`;
+const weeksFmt = v => `${v.toFixed(v < 1 ? 2 : 1)} wk`;
+const groupOrder = r => r.focus === "kenya_domestic" ? 0 : r.focus === "east_africa_crossborder" ? 1 :
+                        2 + ["Other Africa", "Europe", "North America", "Asia"].indexOf(r.region);
+const colorOf = r => FOCUS[r.focus]?.color || "var(--s2)";
+
+function groupedRows(stats, valueKey, fmt, extra) {
+  const groups = {};
+  for (const s of stats) {
+    if (s[valueKey] === null) continue;
+    const g = s.route.region || "Unassigned";
+    (groups[g] = groups[g] || { name: g, order: groupOrder(s.route), rows: [] }).rows.push({
+      label: s.route.route_id, value: s[valueKey], color: colorOf(s.route),
+      tipValue: fmt(s[valueKey]), tipLines: extra(s)
+    });
+  }
+  return Object.values(groups).sort((a, b) => a.order - b.order)
+    .map(g => ({ ...g, rows: g.rows.sort((a, b) => b.value - a.value) }));
+}
+function focusLegend(id) {
+  const name = state.compare === "All" ? "Comparison routes" : state.compare;
+  legend(id, [FOCUS.kenya_domestic, FOCUS.east_africa_crossborder, { name, color: FOCUS.comparison.color }], "rect");
+}
+
+function render() {
+  const stats = routeStats();
+  const noFares = state.fares.length ? "No fares for these filters." :
+                  "No fares yet: run python/fare_collector.py, then reload.";
+
+  // ----- Stat tiles -----
+  const medOf = (focusTest, key) => median(stats.filter(s => focusTest(s.route) && s[key] !== null).map(s => s[key]));
+  const kd = medOf(r => r.focus === "kenya_domestic", "centsPerKm");
+  const cp = medOf(r => r.focus === "comparison", "centsPerKm");
+  const kw = medOf(r => r.focus === "kenya_domestic", "weeks");
+  const cw = medOf(r => r.focus === "comparison", "weeks");
+  const cname = state.compare === "All" ? "all comparison routes" : state.compare;
+  const tiles = [
+    ["Kenya domestic, fare per km", kd !== null ? cents(kd) : "–", "median of routes"],
+    [`${cname[0].toUpperCase() + cname.slice(1)}, fare per km`, cp !== null ? cents(cp) : "–", "median of routes"],
+    ["Kenya vs comparison", kd !== null && cp ? `${(kd / cp).toFixed(1)}×` : "–", "fare per km, ratio"],
+    ["Return ticket in weeks of income", kw !== null ? `${kw.toFixed(1)} vs ${cw !== null ? cw.toFixed(2) : "–"}` : "–",
+     `Kenya vs ${cname}`]
+  ];
+  const tbox = document.getElementById("tiles"); tbox.textContent = "";
+  for (const [k, v, n] of tiles) {
+    const d = document.createElement("div"); d.className = "tile";
+    for (const [cls, t] of [["k", k], ["v", v], ["n", n]]) {
+      const e = document.createElement("div"); e.className = cls; e.textContent = t; d.appendChild(e);
+    }
+    tbox.appendChild(d);
+  }
+
+  // ----- Fare per km -----
+  focusLegend("lg-perkm");
+  hbar(document.getElementById("c-perkm"),
+       groupedRows(stats, "centsPerKm", v => `${v.toFixed(1)}¢ per km`,
+                   s => [`${s.route.route_id} · ${s.route.region}`, `median ${usd(s.median)} over ${s.km} km`, `${s.n} observations`]),
+       cents, { emptyText: noFares });
+
+  // ----- Scatter -----
+  focusLegend("lg-scatter");
+  const pts = focus => stats.filter(s => s.route.focus === focus && s.median !== null && s.km).map(s => ({
+    x: s.km, y: s.median, label: s.route.route_id, tipValue: usd(s.median),
+    tipLines: [`${s.route.route_id} · ${s.route.region}`, `${s.km} km · ${cents(s.centsPerKm)} per km`] }));
+  scatter(document.getElementById("c-scatter"), [
+    { color: FOCUS.comparison.color, points: pts("comparison") },
+    { color: FOCUS.east_africa_crossborder.color, points: pts("east_africa_crossborder"), labelPoints: true },
+    { color: FOCUS.kenya_domestic.color, points: pts("kenya_domestic"), labelPoints: true }
+  ], { emptyText: noFares, xFmt: v => `${v}`, yFmt: usd, xTitle: "Distance (km)" });
+
+  // ----- Weeks of income -----
+  focusLegend("lg-weeks");
+  hbar(document.getElementById("c-weeks"),
+       groupedRows(stats, "weeks", v => `${v.toFixed(2)} weeks of income`,
+                   s => [`${s.route.route_id} · return ≈ ${usd(2 * s.median)}`, `GNI per person ${usd(s.gni)} a year`]),
+       weeksFmt, { emptyText: state.countries.length ? noFares : "No income data yet: run python/fetch_income_data.py." });
+
+  // ----- Fares over time -----
+  const route = state.route;
+  document.getElementById("t-time").textContent = route ? `Fares over time: ${route}` : "Fares over time";
+  const rf = state.fares.filter(f => f.route_id === route && fareOf(f) !== null);
+  const horizons = [...new Set(rf.filter(f => f.source !== "manual").map(f => f.days_ahead))].sort((a, b) => a - b);
+  const palette = ["var(--s1)", "var(--s2)", "var(--s3)"];
+  const series = horizons.slice(0, 3).map((h, i) => ({
+    name: `${h} days ahead`, color: palette[i],
+    points: rf.filter(f => f.days_ahead === h && f.source !== "manual").map(f => ({ t: Date.parse(f.observed_on), y: fareOf(f) }))
+  }));
+  const manual = rf.filter(f => f.source === "manual");
+  if (manual.length) series.push({ name: "Manual checks", color: "var(--s7)", dotsOnly: true,
+                                   points: manual.map(f => ({ t: Date.parse(f.observed_on), y: fareOf(f) })) });
+  legend("lg-time", series, "line");
+  lineChart(document.getElementById("c-time"), series, { emptyText: noFares, yFmt: usd });
+
+  // ----- Simulator charts -----
+  const latest = {};
+  for (const r of state.results) {
+    const k = `${r.airline}|${r.origin}|${r.destination}`;
+    if (!latest[k] || (r.timestamp || "") >= (latest[k].timestamp || "")) latest[k] = r;
+  }
+  const runs = Object.values(latest).map(r => ({ ...r, _label: `${r.airline} ${r.origin}–${r.destination}`,
+                                                     _short: `${r.origin}–${r.destination}` }));
+  const simEmpty = "No simulator runs yet: run python/route_profitability.py.";
+  hbar(document.getElementById("c-be"), [{ name: "", rows: runs.filter(r => r.break_even_load_factor !== "").map(r => {
+         const v = +r.break_even_load_factor;
+         return { label: `${r.origin}–${r.destination}`, value: Math.min(v, 1.2), color: "var(--s1)",
+                  valueText: v > 1 ? "impossible" : `${Math.round(v * 100)}%`,
+                  tipValue: v > 1 ? "Cannot break even" : `${(v * 100).toFixed(1)}% of seats`,
+                  tipLines: [r._label, r.fare_eur ? `at a fare of €${r.fare_eur}` : ""].filter(Boolean) };
+       }).sort((a, b) => b.value - a.value) }],
+       v => `${Math.round(v * 100)}%`, { emptyText: simEmpty, refLine: 0.8, minMax: 1 });
+  const costColors = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)", "var(--s6)", "var(--s7)", "var(--s8)"];
+  legend("lg-cost", COST_KEYS.map(([, n], i) => ({ name: n, color: costColors[i] })), "rect");
+  stackedBars(document.getElementById("c-cost"), runs, COST_KEYS, costColors, v => `€${Math.round(v).toLocaleString("en")}`, simEmpty);
+
+  // ----- Table -----
+  const wrap = document.getElementById("c-table"); wrap.textContent = "";
+  const shown = stats.filter(s => s.n).sort((a, b) => groupOrder(a.route) - groupOrder(b.route) || b.centsPerKm - a.centsPerKm);
+  if (!shown.length) return empty(wrap, noFares);
+  const table = document.createElement("table");
+  const head = ["Route", "Region", "km", "Obs.", "Median fare", "¢ per km", "GNI / person", "Weeks (return)"];
+  const tr = document.createElement("tr");
+  for (const h of head) { const th = document.createElement("th"); th.textContent = h; tr.appendChild(th); }
+  table.appendChild(tr);
+  for (const s of shown) {
+    const row = document.createElement("tr");
+    for (const v of [s.route.route_id, s.route.region, s.km ?? "–", s.n, s.median !== null ? usd(s.median) : "–",
+                     s.centsPerKm !== null ? s.centsPerKm.toFixed(1) : "–",
+                     s.gni ? usd(s.gni) : "–", s.weeks !== null ? s.weeks.toFixed(2) : "–"]) {
+      const td = document.createElement("td"); td.textContent = v; row.appendChild(td);
+    }
+    table.appendChild(row);
+  }
+  wrap.appendChild(table);
+}
+
+/* =====================================================================
+   8. FILTER CONTROLS
+   ===================================================================== */
+function segmented(id, options, current, onPick) {
+  const box = document.getElementById(id); box.textContent = "";
+  for (const [value, label] of options) {
+    const b = document.createElement("button");
+    b.textContent = label; b.setAttribute("aria-pressed", value === current);
+    b.addEventListener("click", () => { onPick(value); setupFilters(); render(); });
+    box.appendChild(b);
+  }
+}
+function setupFilters() {
+  segmented("compare", COMPARE_REGIONS.map(r => [r, r]), state.compare, v => state.compare = v);
+  segmented("faretype", [["nonstop", "Nonstop"], ["cheapest", "Cheapest incl. connections"]],
+            state.fareType, v => state.fareType = v);
+
+  const hz = document.getElementById("horizon");
+  const days = [...new Set(state.fares.filter(f => f.source !== "manual").map(f => f.days_ahead))].sort((a, b) => a - b);
+  if (state.horizon !== "all" && !days.includes(state.horizon)) state.horizon = "all";
+  hz.textContent = "";
+  for (const [v, l] of [["all", "Any time"], ...days.map(d => [d, `${d} days`])]) {
+    const o = document.createElement("option"); o.value = v; o.textContent = l; hz.appendChild(o);
+  }
+  hz.value = state.horizon;
+
+  const rs = document.getElementById("route");
+  const ids = state.routes.map(r => r.route_id);
+  if (!ids.includes(state.route)) state.route = ids[0] || null;
+  rs.textContent = "";
+  for (const id of ids) { const o = document.createElement("option"); o.value = id; o.textContent = id; rs.appendChild(o); }
+  rs.value = state.route;
+}
+document.getElementById("horizon").addEventListener("change", e => { state.horizon = e.target.value; render(); });
+document.getElementById("route").addEventListener("change", e => { state.route = e.target.value; render(); });
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+
+/* =====================================================================
+   9. START
+   ===================================================================== */
+(async () => {
+  const found = await loadFromServer();
+  setupFilters(); render();
+  document.getElementById("status").textContent = found ? statusText()
+    : "No data loaded. Use “Load CSV files”, or open this page through GitHub Pages or a local server.";
+})();
+</script>
+</body>
+</html>
