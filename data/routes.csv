@@ -1,27 +1,27 @@
 route_id,origin,destination,origin_country,destination_country,region,focus,typical_lcc,distance_km,active,notes
-NBO-MBA,NBO,MBA,KE,KE,Kenya domestic,kenya_domestic,Jambojet,,yes,Core route
-NBO-KIS,NBO,KIS,KE,KE,Kenya domestic,kenya_domestic,Jambojet,,yes,
-NBO-EDL,NBO,EDL,KE,KE,Kenya domestic,kenya_domestic,Jambojet,,yes,
-NBO-MYD,NBO,MYD,KE,KE,Kenya domestic,kenya_domestic,Jambojet,,yes,Check current service
-NBO-UKA,NBO,UKA,KE,KE,Kenya domestic,kenya_domestic,Jambojet,,yes,Diani; may be seasonal
-NBO-LAU,NBO,LAU,KE,KE,Kenya domestic,kenya_domestic,Jambojet,,yes,Check current service
-NBO-EBB,NBO,EBB,KE,UG,East Africa cross-border,east_africa_crossborder,Jambojet,,yes,
-NBO-DAR,NBO,DAR,KE,TZ,East Africa cross-border,east_africa_crossborder,,,yes,
-NBO-KGL,NBO,KGL,KE,RW,East Africa cross-border,east_africa_crossborder,,,yes,
-NBO-ZNZ,NBO,ZNZ,KE,TZ,East Africa cross-border,east_africa_crossborder,Jambojet,,yes,
-JNB-CPT,JNB,CPT,ZA,ZA,Other Africa,comparison,FlySafair,,yes,Africa's most competitive LCC market
-LOS-ABV,LOS,ABV,NG,NG,Other Africa,comparison,,,yes,
-STN-DUB,STN,DUB,GB,IE,Europe,comparison,Ryanair,,yes,Cross-border
-LTN-AMS,LTN,AMS,GB,NL,Europe,comparison,easyJet,,yes,Cross-border
-BER-VIE,BER,VIE,DE,AT,Europe,comparison,,,yes,Cross-border
-BUD-BER,BUD,BER,HU,DE,Europe,comparison,Wizz Air,,yes,Cross-border
-BGY-NAP,BGY,NAP,IT,IT,Europe,comparison,Ryanair,,yes,Domestic
-DAL-HOU,DAL,HOU,US,US,North America,comparison,Southwest,,yes,
-LAS-LAX,LAS,LAX,US,US,North America,comparison,,,yes,
-LAS-PHX,LAS,PHX,US,US,North America,comparison,,,yes,
-ATL-MCO,ATL,MCO,US,US,North America,comparison,,,yes,
-KUL-SIN,KUL,SIN,MY,SG,Asia,comparison,AirAsia,,yes,Cross-border
-BKK-CNX,BKK,CNX,TH,TH,Asia,comparison,,,yes,Bangkok Don Mueang (DMK) is also served by LCCs
-MNL-CEB,MNL,CEB,PH,PH,Asia,comparison,Cebu Pacific,,yes,
-BLR-HYD,BLR,HYD,IN,IN,Asia,comparison,IndiGo,,yes,
-CGK-SIN,CGK,SIN,ID,SG,Asia,comparison,,,yes,Cross-border
+NBO-MBA,NBO,MBA,KE,KE,Kenya domestic,kenya_domestic,Jambojet,423,yes,Core route
+NBO-KIS,NBO,KIS,KE,KE,Kenya domestic,kenya_domestic,Jambojet,280,yes,
+NBO-EDL,NBO,EDL,KE,KE,Kenya domestic,kenya_domestic,Jambojet,268,yes,
+NBO-MYD,NBO,MYD,KE,KE,Kenya domestic,kenya_domestic,Jambojet,412,yes,Check current service
+NBO-UKA,NBO,UKA,KE,KE,Kenya domestic,kenya_domestic,Jambojet,442,yes,Diani; may be seasonal
+NBO-LAU,NBO,LAU,KE,KE,Kenya domestic,kenya_domestic,Jambojet,455,yes,Check current service
+NBO-EBB,NBO,EBB,KE,UG,East Africa cross-border,east_africa_crossborder,Jambojet,521,yes,
+NBO-DAR,NBO,DAR,KE,TZ,East Africa cross-border,east_africa_crossborder,,667,yes,
+NBO-KGL,NBO,KGL,KE,RW,East Africa cross-border,east_africa_crossborder,,758,yes,
+NBO-ZNZ,NBO,ZNZ,KE,TZ,East Africa cross-border,east_africa_crossborder,Jambojet,602,yes,
+JNB-CPT,JNB,CPT,ZA,ZA,Other Africa,comparison,FlySafair,1272,yes,Africa's most competitive LCC market
+LOS-ABV,LOS,ABV,NG,NG,Other Africa,comparison,,511,yes,
+STN-DUB,STN,DUB,GB,IE,Europe,comparison,Ryanair,470,yes,Cross-border
+LTN-AMS,LTN,AMS,GB,NL,Europe,comparison,easyJet,354,yes,Cross-border
+BER-VIE,BER,VIE,DE,AT,Europe,comparison,,521,yes,Cross-border
+BUD-BER,BUD,BER,HU,DE,Europe,comparison,Wizz Air,686,yes,Cross-border
+BGY-NAP,BGY,NAP,IT,IT,Europe,comparison,Ryanair,648,yes,Domestic
+DAL-HOU,DAL,HOU,US,US,North America,comparison,Southwest,386,yes,
+LAS-LAX,LAS,LAX,US,US,North America,comparison,,380,yes,
+LAS-PHX,LAS,PHX,US,US,North America,comparison,,411,yes,
+ATL-MCO,ATL,MCO,US,US,North America,comparison,,651,yes,
+KUL-SIN,KUL,SIN,MY,SG,Asia,comparison,AirAsia,297,yes,Cross-border
+BKK-CNX,BKK,CNX,TH,TH,Asia,comparison,,597,yes,Bangkok Don Mueang (DMK) is also served by LCCs
+MNL-CEB,MNL,CEB,PH,PH,Asia,comparison,Cebu Pacific,567,yes,
+BLR-HYD,BLR,HYD,IN,IN,Asia,comparison,IndiGo,455,yes,
+CGK-SIN,CGK,SIN,ID,SG,Asia,comparison,,882,yes,Cross-border
