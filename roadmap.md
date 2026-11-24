@@ -4,7 +4,7 @@
 - [x] C profit calculator with cargo modes, web version with chart
 - [x] Route estimator: OurAirports distances, Wikipedia route and fleet lookup, component cost model
 - [x] Airline profiles: build, correct and save as default
-- [x] Route list (26 routes: Kenya domestic, East Africa cross-border, Other Africa, Europe, North America, Asia)
+- [x] Route list (33 routes: Kenya domestic, East Africa cross-border, Other Africa, Europe, North America, South America, Asia)
 - [x] Fare collector (SerpApi + manual entry), weekly GitHub Action
 - [x] Income data from the World Bank
 - [x] Dashboard

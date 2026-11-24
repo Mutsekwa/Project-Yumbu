@@ -18,7 +18,7 @@ The paper outline is in `paper/outline.md`.
 | `python/route_profitability.py` | Route profitability estimator with airline profiles |
 | `python/fare_collector.py` | Weekly fare snapshots (SerpApi Google Flights) and manual fare entry |
 | `python/fetch_income_data.py` | World Bank income data for the affordability measure |
-| `data/routes.csv` | The 26 tracked routes: Kenya, East Africa and comparison markets |
+| `data/routes.csv` | The 33 tracked routes: Kenya, East Africa and comparison markets |
 | `data/airlines/*.json` | Airline profiles you built and corrected |
 | `data/fares/fares.csv` | Collected fares |
 | `data/countries.csv` | GNI per capita by country |
@@ -45,10 +45,11 @@ Put your email in `USER_AGENT` in `python/route_data.py` before the first run (W
 
 ## 2. Fare collection
 
-**Automatic (recommended):** prices come from [SerpApi's Google Flights API](https://serpapi.com/google-flights-api). The free plan allows 250 searches a month; one run covers 26 routes × 2 booking horizons (14 and 45 days ahead) = 52 searches, so a weekly run fits. The script stops itself at 245 searches a month, counted in `data/fares/api_usage.csv`.
+**Automatic (recommended):** prices come from [SerpApi's Google Flights API](https://serpapi.com/google-flights-api). The free plan allows 250 searches a month per key; one run covers 33 routes × 2 booking horizons (14 and 45 days ahead) = 66 searches. One key covers three weekly runs a month; with a second key (`SERPAPI_KEY_2`) every week is covered. Before each run the script asks SerpApi how many searches each key has left (this is free), uses each key until it runs out and then moves to the next. Usage is logged in `data/fares/api_usage.csv` with a short fingerprint per key, never the key itself.
 
 ```
 export SERPAPI_KEY=your_key          # Windows: set SERPAPI_KEY=your_key
+export SERPAPI_KEY_2=your_other_key  # optional extra keys: _2, _3 ... _9
 python python/fare_collector.py      # collect now
 python python/fare_collector.py --summary
 ```
@@ -60,7 +61,7 @@ python python/fare_collector.py --manual
 ```
 
 **Every Monday without your laptop:** the GitHub Action in `.github/workflows/collect-fares.yml` runs the collector and commits the new fares to the repository.
-1. On github.com: **Settings → Secrets and variables → Actions → New repository secret**, name `SERPAPI_KEY`, paste your key.
+1. On github.com: **Settings → Secrets and variables → Actions → New repository secret**, name `SERPAPI_KEY`, paste your key. Add extra keys the same way as `SERPAPI_KEY_2` and `SERPAPI_KEY_3`.
 2. **Settings → Actions → General → Workflow permissions → Read and write permissions → Save.**
 3. Test it: **Actions tab → Collect fares → Run workflow.**
 

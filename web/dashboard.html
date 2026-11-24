@@ -227,7 +227,7 @@ const FOCUS = {
   east_africa_crossborder: { name: "East Africa cross-border", color: "var(--s3)" },
   comparison:              { name: "Comparison",               color: "var(--s2)" }
 };
-const COMPARE_REGIONS = ["Europe", "North America", "Asia", "Other Africa", "All"];
+const COMPARE_REGIONS = ["Europe", "North America", "South America", "Asia", "Other Africa", "All"];
 const COST_KEYS = [
   ["cost_fuel_eur", "Fuel"], ["cost_crew_eur", "Crew"], ["cost_maintenance_eur", "Maintenance"],
   ["cost_aircraft_lease_eur", "Lease"], ["cost_landing_fee_eur", "Landing"],
@@ -644,7 +644,7 @@ const cents = v => `${v.toFixed(v < 10 ? 1 : 0)}¢`;
 const usd = v => `$${Math.round(v).toLocaleString("en")}`;
 const weeksFmt = v => `${v.toFixed(v < 1 ? 2 : 1)} wk`;
 const groupOrder = r => r.focus === "kenya_domestic" ? 0 : r.focus === "east_africa_crossborder" ? 1 :
-                        2 + ["Other Africa", "Europe", "North America", "Asia"].indexOf(r.region);
+                        2 + ["Other Africa", "Europe", "North America", "South America", "Asia"].indexOf(r.region);
 const colorOf = r => FOCUS[r.focus]?.color || "var(--s2)";
 
 function groupedRows(stats, valueKey, fmt, extra) {

@@ -9,9 +9,16 @@ and you build a time series of real fares for the paper.
 Where the prices come from
 --------------------------
 SerpApi's Google Flights API (https://serpapi.com/google-flights-api).
-Its free plan allows 250 searches a month. With 26 routes and two booking
-horizons (14 and 45 days ahead) one weekly run uses 52 searches, so four
-or five runs fit in a month. The script refuses to go over MONTHLY_LIMIT.
+Its free plan allows 250 searches a month. With 33 routes and two booking
+horizons (14 and 45 days ahead) one weekly run uses 66 searches, so one key
+covers three weekly runs a month. Add more keys for more searches:
+SERPAPI_KEY, SERPAPI_KEY_2, SERPAPI_KEY_3 ... (up to SERPAPI_KEY_9).
+The script uses each key until it runs out, then moves on to the next one.
+
+Before every run it asks SerpApi how many searches each key has left (the
+Account API is free and does not use a search), so it never goes over the
+limit. Usage is also logged in data/fares/api_usage.csv, which stores only a
+short fingerprint of each key, never the key itself.
 
 Every search uses the same settings (one-way, economy, one adult, prices in
 USD, US point of sale) so that fares are comparable between routes and weeks.
@@ -23,6 +30,7 @@ You can also type in fares you checked yourself on an airline's website:
 Usage
 -----
     set the key once:   export SERPAPI_KEY=your_key      (Windows: set SERPAPI_KEY=your_key)
+    a second key:       export SERPAPI_KEY_2=your_other_key
     collect:            python python/fare_collector.py
     only some routes:   python python/fare_collector.py --routes NBO-MBA,STN-DUB
     see what you have:  python python/fare_collector.py --summary
@@ -31,6 +39,7 @@ Usage
 
 import argparse
 import csv
+import hashlib
 import os
 import statistics
 import sys
@@ -46,7 +55,9 @@ FARES_CSV = PROJECT_DIR / "data" / "fares" / "fares.csv"
 USAGE_CSV = PROJECT_DIR / "data" / "fares" / "api_usage.csv"   # searches made per run
 
 SERPAPI_URL = "https://serpapi.com/search.json"
-MONTHLY_LIMIT = 245          # stay just under the free plan's 250 searches
+SERPAPI_ACCOUNT_URL = "https://serpapi.com/account.json"   # free, doesn't use a search
+MONTHLY_LIMIT = 245          # per key: stay just under the free plan's 250 searches
+SAFETY_MARGIN = 5            # searches kept in reserve on each key
 DEFAULT_DAYS_AHEAD = [14, 45]
 
 FARE_FIELDS = ["observed_on", "route_id", "origin", "destination", "departure_date", "days_ahead",
@@ -115,22 +126,71 @@ def load_routes():
 # SerpApi
 # ---------------------------------------------------------------------------
 
-def searches_this_month():
-    """Searches made this month, from the usage log (failed searches included)."""
+def api_keys():
+    """All SerpApi keys that are set: SERPAPI_KEY, SERPAPI_KEY_2 ... SERPAPI_KEY_9, SERPAPI_KEYS."""
+    names = ["SERPAPI_KEY"] + [f"SERPAPI_KEY_{i}" for i in range(2, 10)]
+    keys = [os.environ.get(name, "") for name in names]
+    keys += os.environ.get("SERPAPI_KEYS", "").split(",")    # optional comma-separated list
+    unique = []
+    for key in (k.strip() for k in keys):
+        if key and key not in unique:
+            unique.append(key)
+    return unique
+
+
+def key_id(key):
+    """Short fingerprint of a key, safe to save in the repository (the key itself never is)."""
+    return hashlib.sha256(key.encode()).hexdigest()[:8]
+
+
+def read_usage():
+    rows = read_csv(USAGE_CSV)
+    for row in rows:
+        row["key_id"] = row.get("key_id") or ""   # rows from before multi-key support have none
+    return rows
+
+
+def searches_this_month(kid=None, include_unlabelled=True):
+    """Searches made this month according to the usage log (failed searches included)."""
     month = date.today().strftime("%Y-%m")
-    return sum(int(u["searches"]) for u in read_csv(USAGE_CSV) if u["date"].startswith(month))
+    total = 0
+    for u in read_usage():
+        if not u["date"].startswith(month):
+            continue
+        if kid is None or u["key_id"] == kid or (include_unlabelled and u["key_id"] == ""):
+            total += int(u["searches"])
+    return total
 
 
-def log_usage(searches):
-    if searches == 0:
-        return
-    new_file = not USAGE_CSV.exists()
-    USAGE_CSV.parent.mkdir(parents=True, exist_ok=True)
-    with open(USAGE_CSV, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        if new_file:
-            writer.writerow(["date", "searches"])
-        writer.writerow([date.today().isoformat(), searches])
+def log_usage(searches_by_key):
+    rows = read_usage()
+    today = date.today().isoformat()
+    for kid, n in searches_by_key.items():
+        if n:
+            rows.append({"date": today, "key_id": kid, "searches": n})
+    if rows:
+        write_csv(USAGE_CSV, rows, ["date", "key_id", "searches"])
+
+
+def remaining_searches(key, first_key):
+    """
+    How many searches this key may still use: asks SerpApi's Account API first,
+    falls back to the local usage log if that doesn't answer.
+    """
+    try:
+        info = requests.get(SERPAPI_ACCOUNT_URL, params={"api_key": key}, timeout=30).json()
+        if "error" not in info and info.get("total_searches_left") is not None:
+            left = int(info["total_searches_left"])
+            hourly = info.get("account_rate_limit_per_hour")
+            if hourly:
+                left = min(left, int(hourly) - int(info.get("this_hour_searches") or 0))
+            return max(left - SAFETY_MARGIN, 0), "according to SerpApi"
+        if "error" in info:
+            print(f"  SerpApi says: {info['error']}")
+    except (requests.RequestException, ValueError):
+        pass
+    used = searches_this_month(key_id(key), include_unlabelled=first_key)
+    return max(MONTHLY_LIMIT - used, 0), "according to the local usage log"
 
 
 def search_one_way(api_key, origin, destination, departure_date):
@@ -176,8 +236,8 @@ def summarise_itineraries(data):
 
 
 def collect(routes, days_ahead, max_searches):
-    api_key = os.environ.get("SERPAPI_KEY")
-    if not api_key:
+    keys = api_keys()
+    if not keys:
         message = ("No SERPAPI_KEY found. Create a free key at serpapi.com and set it first "
                    "(see the top of this file), or use --manual.")
         if os.environ.get("GITHUB_ACTIONS") == "true":
@@ -188,32 +248,58 @@ def collect(routes, days_ahead, max_searches):
             return
         sys.exit(message)
 
-    used = searches_this_month()
-    budget = min(max_searches, MONTHLY_LIMIT - used)
-    print(f"Searches recorded this month: {used}. Allowed in this run: {max(budget, 0)}.")
+    # [key, searches it may still use]
+    accounts = []
+    for i, key in enumerate(keys):
+        left, how = remaining_searches(key, first_key=(i == 0))
+        accounts.append([key, left])
+        print(f"Key {i + 1} ({key_id(key)}): {left} searches available {how}.")
+    budget = min(max_searches, sum(a[1] for a in accounts))
+    print(f"Searches allowed in this run: {budget}.")
     if budget <= 0:
-        print("Monthly limit reached; nothing to do.")
+        print("Every key has used up its searches; nothing to do.")
         return
 
     today = date.today()
     observed_on = datetime.now(timezone.utc).date().isoformat()
-    rows, done = [], 0
+    rows, used, done = [], {}, 0
+
+    def search(route, departure):
+        """Run one search, moving to the next key when one runs out. Returns (data, error)."""
+        nonlocal done
+        while done < budget:
+            account = next((a for a in accounts if a[1] > 0), None)
+            if account is None:
+                return None, "no searches left on any key"
+            kid = key_id(account[0])
+            account[1] -= 1
+            used[kid] = used.get(kid, 0) + 1
+            done += 1
+            try:
+                return search_one_way(account[0], route["origin"], route["destination"], departure), None
+            except RuntimeError as error:          # an error message from SerpApi
+                text = str(error).lower()
+                if "run out" in text or "limit" in text or "plan" in text:
+                    print(f"  Key {kid} is out of searches ({error}); switching to the next key.")
+                    account[1] = 0
+                    continue
+                return None, error
+            except (requests.RequestException, ValueError) as error:
+                return None, error
+        return None, "search budget for this run used up"
+
+    stop = False
     for route in routes:
         for days in days_ahead:
-            if done >= budget:
-                print("Search budget for this run used up.")
-                append_fares(rows)
-                log_usage(done)
-                return
             departure = (today + timedelta(days=days)).isoformat()
             label = f"{route['route_id']:<8} {departure} ({days:>2} days ahead)"
-            try:
-                data = search_one_way(api_key, route["origin"], route["destination"], departure)
-            except (requests.RequestException, RuntimeError, ValueError) as error:
+            data, error = search(route, departure)
+            if data is None:
                 print(f"  {label}: failed ({error})")
-                done += 1
+                if error in ("no searches left on any key", "search budget for this run used up"):
+                    stop = True
+                    break
                 continue
-            done += 1
             cheapest, nonstop, typical = summarise_itineraries(data)
             if cheapest is None:
                 print(f"  {label}: no flights found")
@@ -233,9 +319,13 @@ def collect(routes, days_ahead, max_searches):
             nonstop_text = f"nonstop ${nonstop['price']} {nonstop['airlines']}" if nonstop else "no nonstop"
             print(f"  {label}: cheapest ${cheapest['price']} ({cheapest['airlines']}), {nonstop_text}")
             time.sleep(1)
+        if stop:
+            break
+
     append_fares(rows)
-    log_usage(done)
-    print(f"Saved {len(rows)} fare(s) to {FARES_CSV.relative_to(PROJECT_DIR)}")
+    log_usage(used)
+    print(f"Saved {len(rows)} fare(s) to {FARES_CSV.relative_to(PROJECT_DIR)}. "
+          f"Searches used: " + ", ".join(f"{k} {n}" for k, n in used.items()))
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +390,7 @@ def main():
     parser.add_argument("--routes", help="comma-separated route ids, e.g. NBO-MBA,STN-DUB")
     parser.add_argument("--days", default=",".join(map(str, DEFAULT_DAYS_AHEAD)),
                         help="booking horizons in days, e.g. 14,45")
-    parser.add_argument("--max-searches", type=int, default=60, help="limit for this run")
+    parser.add_argument("--max-searches", type=int, default=80, help="limit for this run")
     parser.add_argument("--manual", action="store_true", help="type in fares yourself")
     parser.add_argument("--summary", action="store_true", help="show what has been collected")
     args = parser.parse_args()

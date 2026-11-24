@@ -3,6 +3,7 @@
 # One-time setup on github.com:
 #   1. Repository -> Settings -> Secrets and variables -> Actions -> New repository secret
 #      Name: SERPAPI_KEY    Value: your key from serpapi.com
+#      More keys (optional): SERPAPI_KEY_2, SERPAPI_KEY_3. Unused names are simply skipped.
 #   2. Repository -> Settings -> Actions -> General -> Workflow permissions
 #      -> "Read and write permissions" -> Save
 # You can also start it by hand: Actions tab -> Collect fares -> Run workflow.
@@ -38,6 +39,8 @@ jobs:
         run: python python/fare_collector.py
         env:
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          SERPAPI_KEY_2: ${{ secrets.SERPAPI_KEY_2 }}
+          SERPAPI_KEY_3: ${{ secrets.SERPAPI_KEY_3 }}
 
       - name: Commit new data
         run: |
