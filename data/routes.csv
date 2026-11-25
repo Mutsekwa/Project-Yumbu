@@ -9,26 +9,26 @@ NBO-EBB,NBO,EBB,KE,UG,East Africa cross-border,east_africa_crossborder,Jambojet,
 NBO-DAR,NBO,DAR,KE,TZ,East Africa cross-border,east_africa_crossborder,,667,yes,
 NBO-KGL,NBO,KGL,KE,RW,East Africa cross-border,east_africa_crossborder,,758,yes,
 NBO-ZNZ,NBO,ZNZ,KE,TZ,East Africa cross-border,east_africa_crossborder,Jambojet,602,yes,
-NBO-MGQ,NBO,MGQ,KE,SO,East Africa cross-border,east_africa_crossborder,,,yes,"Mogadishu; about 1,000 km, longer than the other routes"
+NBO-MGQ,NBO,MGQ,KE,SO,East Africa cross-border,east_africa_crossborder,,1002,yes,"Mogadishu; about 1,000 km, longer than the other routes"
 JNB-CPT,JNB,CPT,ZA,ZA,Other Africa,comparison,FlySafair,1272,yes,Africa's most competitive LCC market
 LOS-ABV,LOS,ABV,NG,NG,Other Africa,comparison,,511,yes,
 STN-DUB,STN,DUB,GB,IE,Europe,comparison,Ryanair,470,yes,Cross-border
 LTN-AMS,LTN,AMS,GB,NL,Europe,comparison,easyJet,354,yes,Cross-border
 BUD-BER,BUD,BER,HU,DE,Europe,comparison,Wizz Air,686,yes,Cross-border
 BGY-NAP,BGY,NAP,IT,IT,Europe,comparison,Ryanair,648,yes,Domestic
-OSL-BGO,OSL,BGO,NO,NO,Europe,comparison,Norwegian,,yes,Domestic; replaces Berlin-Vienna
-BCN-PMI,BCN,PMI,ES,ES,Europe,comparison,Vueling,,yes,"Domestic (island); short, about 200 km"
+OSL-BGO,OSL,BGO,NO,NO,Europe,comparison,Norwegian,325,yes,Domestic; replaces Berlin-Vienna
+BCN-PMI,BCN,PMI,ES,ES,Europe,comparison,Vueling,202,yes,"Domestic (island); short, about 200 km"
 DAL-HOU,DAL,HOU,US,US,North America,comparison,Southwest,386,yes,
 LAS-LAX,LAS,LAX,US,US,North America,comparison,,380,yes,
 LAS-PHX,LAS,PHX,US,US,North America,comparison,,411,yes,
 ATL-MCO,ATL,MCO,US,US,North America,comparison,,651,yes,
-YVR-YYC,YVR,YYC,CA,CA,North America,comparison,Flair Airlines,,yes,
+YVR-YYC,YVR,YYC,CA,CA,North America,comparison,Flair Airlines,687,yes,
 KUL-SIN,KUL,SIN,MY,SG,Asia,comparison,AirAsia,297,yes,Cross-border
 BKK-CNX,BKK,CNX,TH,TH,Asia,comparison,,597,yes,Bangkok Don Mueang (DMK) is also served by LCCs
 MNL-CEB,MNL,CEB,PH,PH,Asia,comparison,Cebu Pacific,567,yes,
 BLR-HYD,BLR,HYD,IN,IN,Asia,comparison,IndiGo,455,yes,
 CGK-SIN,CGK,SIN,ID,SG,Asia,comparison,,882,yes,Cross-border
-CGH-SDU,CGH,SDU,BR,BR,South America,comparison,Gol,,yes,Sao Paulo Congonhas - Rio Santos Dumont
-AEP-COR,AEP,COR,AR,AR,South America,comparison,JetSMART,,yes,Buenos Aires Aeroparque - Cordoba
-BOG-CTG,BOG,CTG,CO,CO,South America,comparison,Wingo,,yes,
-SCL-CCP,SCL,CCP,CL,CL,South America,comparison,JetSMART,,yes,Santiago - Concepcion
+CGH-SDU,CGH,SDU,BR,BR,South America,comparison,Gol,365,yes,Sao Paulo Congonhas - Rio Santos Dumont
+AEP-COR,AEP,COR,AR,AR,South America,comparison,JetSMART,650,yes,Buenos Aires Aeroparque - Cordoba
+BOG-CTG,BOG,CTG,CO,CO,South America,comparison,Wingo,656,yes,
+SCL-CCP,SCL,CCP,CL,CL,South America,comparison,JetSMART,429,yes,Santiago - Concepcion
