@@ -1,0 +1,50 @@
+airline,model,state_owned,country,group,cabin_bag_included,checked_bag_included,seat_selection_included,source,verified
+Jambojet Limited,lcc,partly (via Kenya Airways),KE,Kenya Airways,,,,,no
+Kenya Airways,full_service,partly,KE,,,,,,no
+Safarilink,regional,no,KE,,,,,,no
+Skyward Express,regional,no,KE,,,,,,no
+Flightlink Limited,regional,,TZ,,,,,,no
+PrecisionAir,regional,,TZ,,,,,,no
+Air Tanzania,full_service,yes,TZ,,,,,,no
+Uganda Airlines,full_service,yes,UG,,,,,,no
+RwandAir,full_service,yes,RW,,,,,,no
+Ethiopian,full_service,yes,ET,,,,,,no
+Daallo Airlines,regional,,SO,,,,,,no
+FlySafair,lcc,no,ZA,,,,,,no
+LIFT Airline,hybrid,no,ZA,,,,,,no
+South African,full_service,yes,ZA,,,,,,no
+Air Peace,full_service,no,NG,,,,,,no
+Green Africa Airways,lcc,no,NG,,,,,,no
+Ryanair,ulcc,no,IE,Ryanair Holdings,,,,,no
+easyJet,lcc,no,GB,,,,,,no
+Wizz Air,ulcc,no,HU,,,,,,no
+Norwegian,lcc,,NO,,,,,,no
+Wideroe,regional,,NO,,,,,,no
+Vueling,lcc,no,ES,IAG,,,,,no
+Austrian,full_service,no,AT,Lufthansa Group,,,,,no
+Condor,leisure,no,DE,,,,,,no
+KLM,full_service,partly,NL,Air France-KLM,,,,,no
+Air Serbia,full_service,yes,RS,,,,,,no
+Southwest,lcc,no,US,,,,,,no
+Frontier,ulcc,no,US,,,,,,no
+Flair Airlines,ulcc,no,CA,,,,,,no
+WestJet,hybrid,no,CA,,,,,,no
+Air Canada,full_service,no,CA,,,,,,no
+AirAsia,lcc,no,MY,Capital A,,,,,no
+Thai AirAsia,lcc,no,TH,Capital A,,,,,no
+Thai Vietjet Air,lcc,no,TH,Vietjet,,,,,no
+Batik Air,hybrid,no,MY,Lion Group,,,,,no
+Scoot,lcc,partly,SG,Singapore Airlines,,,,,no
+Cebu Pacific,lcc,no,PH,,,,,,no
+Philippine Airlines,full_service,no,PH,,,,,,no
+IndiGo,lcc,no,IN,,,,,,no
+Alliance Air,regional,yes,IN,,,,,,no
+Citilink Indonesia,lcc,yes,ID,Garuda Indonesia,,,,,no
+Gol,lcc,no,BR,Abra Group,,,,,no
+Azul,hybrid,no,BR,,,,,,no
+LATAM,full_service,no,CL,,,,,,no
+JetSMART,ulcc,no,CL,,,,,,no
+Sky Airline,lcc,no,CL,,,,,,no
+Aerolineas Argentinas,full_service,yes,AR,,,,,,no
+Wingo,lcc,no,CO,Abra Group,,,,,no
+Avianca,hybrid,no,CO,Abra Group,,,,,no

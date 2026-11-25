@@ -14,6 +14,11 @@ on:
   schedule:
     - cron: "17 5 * * 1"     # every Monday 05:17 UTC (06:17 in Germany in winter)
   workflow_dispatch:          # adds a "Run workflow" button
+    inputs:
+      monthly:
+        description: "Also run the monthly return-ticket and Kenyan point-of-sale checks"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -37,6 +42,25 @@ jobs:
 
       - name: Collect fares
         run: python python/fare_collector.py
+        env:
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          SERPAPI_KEY_2: ${{ secrets.SERPAPI_KEY_2 }}
+          SERPAPI_KEY_3: ${{ secrets.SERPAPI_KEY_3 }}
+
+      # First Monday of each month only: two robustness checks (about 44 searches).
+      # 1. Return tickets, to test whether "2 x one-way" is a fair estimate of a return fare.
+      # 2. Kenyan and East African routes searched as if from Kenya, to test point-of-sale effects.
+      - name: Monthly robustness checks
+        run: |
+          SCHEDULED_FIRST_WEEK=false
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%d)" -le 7 ]; then SCHEDULED_FIRST_WEEK=true; fi
+          if [ "$SCHEDULED_FIRST_WEEK" = "true" ] || [ "${{ inputs.monthly }}" = "true" ]; then
+            python python/fare_collector.py --trip return --days 30 --max-searches 40
+            python python/fare_collector.py --gl ke --days 14 --max-searches 15 \
+              --routes NBO-MBA,NBO-KIS,NBO-EDL,NBO-MYD,NBO-UKA,NBO-LAU,NBO-EBB,NBO-DAR,NBO-KGL,NBO-ZNZ,NBO-MGQ
+          else
+            echo "Not the first week of the month; skipping the monthly checks."
+          fi
         env:
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           SERPAPI_KEY_2: ${{ secrets.SERPAPI_KEY_2 }}

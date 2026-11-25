@@ -6,7 +6,7 @@ Code and data for a research paper on airfares and affordability in Kenya:
 
 **Research question:** Why are low-cost airfares in Kenya higher per kilometre than in Europe, North America and Asia, and how far could they fall if Kenya's cost disadvantages were removed?
 
-The paper outline is in `paper/outline.md`.
+The paper outline is in `paper/outline.md`; known weak points of the data and how they're handled are in `paper/data-quality.md`.
 
 ## Repository layout
 
@@ -20,8 +20,12 @@ The paper outline is in `paper/outline.md`.
 | `python/fetch_income_data.py` | World Bank income data for the affordability measure |
 | `data/routes.csv` | The 33 tracked routes: Kenya, East Africa and comparison markets |
 | `data/airlines/*.json` | Airline profiles you built and corrected |
-| `data/fares/fares.csv` | Collected fares |
-| `data/countries.csv` | GNI per capita by country |
+| `data/fares/fares.csv` | Collected fares: one row per search (cheapest, nonstop, low-cost airline, competition) |
+| `data/fares/carrier_fares.csv` | Cheapest fare of every airline on every search |
+| `data/raw/` | Full search results, compressed, for later re-analysis (no API keys) |
+| `data/airlines.csv` | Airline type, ownership and what each fare includes (**to verify**) |
+| `data/taxes_charges.csv` | Taxes and airport charges by country (**to fill in**) |
+| `data/countries.csv` | GNI per capita (US$ and PPP), Gini index and population |
 | `data/results/route_results.csv` | Saved runs of the route estimator |
 | `data/aircraft_types.csv` | Aircraft cost assumptions (**placeholders, replace with sourced values**) |
 | `.github/workflows/collect-fares.yml` | Runs the fare collector automatically every Monday |
@@ -53,6 +57,10 @@ export SERPAPI_KEY_2=your_other_key  # optional extra keys: _2, _3 ... _9
 python python/fare_collector.py      # collect now
 python python/fare_collector.py --summary
 ```
+
+**Validation:** `python python/fare_collector.py --validate` lists fares from the latest run to check on the airlines' own websites; enter what you find with `--manual`, and `--summary` shows the differences.
+
+**Monthly robustness checks** (first Monday of each month, or tick *monthly* when starting the workflow by hand): return tickets on all routes (`--trip return`) and Kenyan routes searched from a Kenyan point of sale (`--gl ke`).
 
 **Manual checks** (e.g. on jambojet.com, to validate the automatic data):
 

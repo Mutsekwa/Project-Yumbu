@@ -1,0 +1,9 @@
+country,airport,charge,applies_to,amount,currency,per,included_in_google_fare,source,checked_on,notes
+KE,NBO,Passenger service charge,domestic,,,,,,,TO FIND: Kenya Airports Authority tariff
+KE,NBO,Passenger service charge,international,,,,,,,TO FIND
+KE,NBO,Aviation security charge,both,,,,,,,TO FIND
+KE,,Air passenger levies (e.g. KCAA / tourism levy),both,,,,,,,TO FIND: check a ticket's tax breakdown
+KE,,VAT or excise on tickets,domestic,,,,,,,TO FIND
+KE,NBO,Landing fee (per tonne MTOW),aircraft,,,,,,,TO FIND: used by the cost model
+KE,,Jet fuel price,aircraft,,,,,,,TO FIND: Kenya Pipeline / EPRA or airline reports
+GB,STN,Air Passenger Duty and airport charges,both,,,,,,,TO FIND: baseline for comparison

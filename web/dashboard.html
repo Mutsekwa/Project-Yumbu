@@ -205,7 +205,8 @@
     </div>
   </div>
 
-  <p class="foot">Fares: SerpApi Google Flights snapshots and manual checks, one adult, economy, USD.
+  <p class="foot">Fares: SerpApi Google Flights snapshots (one-way, US point of sale) and manual checks, one adult, economy, USD.
+    "Low-cost airline only" uses the fare of the route's low-cost airline listed in data/routes.csv.
     Income: World Bank GNI per capita (Atlas method). Simulator costs are model estimates.</p>
 </div>
 <div id="tip" class="hidden"></div>
@@ -264,6 +265,7 @@ function parseCSV(text) {
 function store(rows) {
   if (!rows.length) return null;
   const cols = Object.keys(rows[0]);
+  if (cols.includes("min_any_usd")) return "carrier fares (not used here)";
   if (cols.includes("observed_on")) { state.fares = rows; return "fares"; }
   if (cols.includes("focus") && cols.includes("route_id")) { state.routes = rows; return "routes"; }
   if (cols.includes("gni_per_capita_usd")) { state.countries = rows; return "countries"; }
@@ -370,10 +372,16 @@ const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) =
 const num = v => (v === undefined || v === "" || v === null) ? null : +v;
 
 function fareOf(f) {
+  if (state.fareType === "lcc") return num(f.lcc_min_usd);
   return state.fareType === "nonstop" ? num(f.nonstop_usd) : num(f.cheapest_usd);
 }
+// Nominal booking horizon (14 or 45); older rows only have days_ahead.
+const horizonOf = f => f.horizon || f.days_ahead;
+// The main comparison uses standard searches only: one-way, US point of sale, or manual checks.
+const isStandard = f => (!f.trip_type || f.trip_type === "one_way") &&
+                        (!f.point_of_sale || f.point_of_sale === "us" || f.point_of_sale === "manual");
 function faresInScope() {
-  return state.fares.filter(f => state.horizon === "all" || f.days_ahead === state.horizon);
+  return state.fares.filter(f => isStandard(f) && (state.horizon === "all" || horizonOf(f) === state.horizon));
 }
 function routeVisible(r) {
   if (r.focus !== "comparison") return true;
@@ -388,15 +396,17 @@ function gniOf(iso2) {
 function routeStats() {
   const fares = faresInScope();
   return state.routes.filter(routeVisible).map(r => {
-    const values = fares.filter(f => f.route_id === r.route_id).map(fareOf).filter(v => v !== null);
+    const own = fares.filter(f => f.route_id === r.route_id);
+    const values = own.map(fareOf).filter(v => v !== null);
     const med = median(values);
+    const carriers = median(own.map(f => num(f.nonstop_carriers)).filter(v => v !== null));
     const km = num(r.distance_km);
     const gni = gniOf(r.origin_country);
     return {
       route: r, n: values.length, median: med, km,
       centsPerKm: med !== null && km ? 100 * med / km : null,
       weeks: med !== null && gni ? (2 * med) / (gni / 52) : null,
-      gni
+      gni, carriers
     };
   });
 }
@@ -721,12 +731,12 @@ function render() {
   // ----- Fares over time -----
   const route = state.route;
   document.getElementById("t-time").textContent = route ? `Fares over time: ${route}` : "Fares over time";
-  const rf = state.fares.filter(f => f.route_id === route && fareOf(f) !== null);
-  const horizons = [...new Set(rf.filter(f => f.source !== "manual").map(f => f.days_ahead))].sort((a, b) => a - b);
+  const rf = state.fares.filter(f => f.route_id === route && isStandard(f) && fareOf(f) !== null);
+  const horizons = [...new Set(rf.filter(f => f.source !== "manual").map(horizonOf))].sort((a, b) => a - b);
   const palette = ["var(--s1)", "var(--s2)", "var(--s3)"];
   const series = horizons.slice(0, 3).map((h, i) => ({
     name: `${h} days ahead`, color: palette[i],
-    points: rf.filter(f => f.days_ahead === h && f.source !== "manual").map(f => ({ t: Date.parse(f.observed_on), y: fareOf(f) }))
+    points: rf.filter(f => horizonOf(f) === h && f.source !== "manual").map(f => ({ t: Date.parse(f.observed_on), y: fareOf(f) }))
   }));
   const manual = rf.filter(f => f.source === "manual");
   if (manual.length) series.push({ name: "Manual checks", color: "var(--s7)", dotsOnly: true,
@@ -760,7 +770,7 @@ function render() {
   const shown = stats.filter(s => s.n).sort((a, b) => groupOrder(a.route) - groupOrder(b.route) || b.centsPerKm - a.centsPerKm);
   if (!shown.length) return empty(wrap, noFares);
   const table = document.createElement("table");
-  const head = ["Route", "Region", "km", "Obs.", "Median fare", "¢ per km", "GNI / person", "Weeks (return)"];
+  const head = ["Route", "Region", "km", "Obs.", "Median fare", "¢ per km", "Nonstop airlines", "GNI / person", "Weeks (return)"];
   const tr = document.createElement("tr");
   for (const h of head) { const th = document.createElement("th"); th.textContent = h; tr.appendChild(th); }
   table.appendChild(tr);
@@ -768,6 +778,7 @@ function render() {
     const row = document.createElement("tr");
     for (const v of [s.route.route_id, s.route.region, s.km ?? "–", s.n, s.median !== null ? usd(s.median) : "–",
                      s.centsPerKm !== null ? s.centsPerKm.toFixed(1) : "–",
+                     s.carriers !== null ? s.carriers : "–",
                      s.gni ? usd(s.gni) : "–", s.weeks !== null ? s.weeks.toFixed(2) : "–"]) {
       const td = document.createElement("td"); td.textContent = v; row.appendChild(td);
     }
@@ -790,11 +801,12 @@ function segmented(id, options, current, onPick) {
 }
 function setupFilters() {
   segmented("compare", COMPARE_REGIONS.map(r => [r, r]), state.compare, v => state.compare = v);
-  segmented("faretype", [["nonstop", "Nonstop"], ["cheapest", "Cheapest incl. connections"]],
+  segmented("faretype", [["nonstop", "Cheapest nonstop"], ["lcc", "Low-cost airline only"],
+                          ["cheapest", "Cheapest incl. connections"]],
             state.fareType, v => state.fareType = v);
 
   const hz = document.getElementById("horizon");
-  const days = [...new Set(state.fares.filter(f => f.source !== "manual").map(f => f.days_ahead))].sort((a, b) => a - b);
+  const days = [...new Set(state.fares.filter(f => f.source !== "manual" && isStandard(f)).map(horizonOf))].sort((a, b) => a - b);
   if (state.horizon !== "all" && !days.includes(state.horizon)) state.horizon = "all";
   hz.textContent = "";
   for (const [v, l] of [["all", "Any time"], ...days.map(d => [d, `${d} days`])]) {

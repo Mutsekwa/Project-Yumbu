@@ -1,14 +1,20 @@
 """
-Project Yumbu - income data for the affordability comparison.
+Project Yumbu - income and market data for the affordability comparison.
 
-Downloads GNI per capita (Atlas method, current US$; World Bank indicator
-NY.GNP.PCAP.CD) for every country in data/routes.csv and writes
-data/countries.csv. The dashboard uses it to express a fare as
-"weeks of average income", the same measure IATA uses.
+Downloads World Bank indicators for every country in data/routes.csv and
+writes data/countries.csv:
 
-Note for the paper: GNI per capita is an average. In unequal countries the
-median person earns much less, so this measure understates how expensive
-flying is for most people. Say so in the Limitations section.
+  gni_per_capita_usd   GNI per capita, Atlas method, current US$ (NY.GNP.PCAP.CD).
+                       The dashboard's "weeks of income" uses this, like IATA does.
+  gni_per_capita_ppp   GNI per capita, PPP, current international $ (NY.GNP.PCAP.PP.CD).
+                       Adjusts for local prices. Use it as a robustness check: if
+                       Kenya's affordability gap shrinks a lot in PPP terms, say so.
+  gini                 Gini index of income inequality (SI.POV.GINI). Average income
+                       overstates what a typical person earns where inequality is high.
+  population           Total population (SP.POP.TOTL), a rough measure of market size.
+
+Each value has its own year column, because the latest available year differs
+between countries (Gini in particular is only measured every few years).
 
 Run:  python python/fetch_income_data.py
 """
@@ -22,8 +28,26 @@ import requests
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 ROUTES_CSV = PROJECT_DIR / "data" / "routes.csv"
 COUNTRIES_CSV = PROJECT_DIR / "data" / "countries.csv"
-INDICATOR = "NY.GNP.PCAP.CD"
 API = "https://api.worldbank.org/v2/country/{codes}/indicator/{indicator}"
+
+INDICATORS = {                     # column name -> World Bank indicator code
+    "gni_per_capita_usd": "NY.GNP.PCAP.CD",
+    "gni_per_capita_ppp": "NY.GNP.PCAP.PP.CD",
+    "gini": "SI.POV.GINI",
+    "population": "SP.POP.TOTL",
+}
+
+
+def fetch(indicator, codes):
+    """Most recent non-empty value per country: {iso2: (country name, value, year)}."""
+    url = API.format(codes=";".join(codes), indicator=indicator)
+    response = requests.get(url, params={"format": "json", "mrnev": 1, "per_page": 400}, timeout=60)
+    response.raise_for_status()
+    payload = response.json()
+    if len(payload) < 2 or payload[1] is None:
+        raise SystemExit(f"Unexpected answer from the World Bank for {indicator}: {payload}")
+    return {r["country"]["id"]: (r["country"]["value"], r["value"], r["date"])
+            for r in payload[1] if r.get("value") is not None}
 
 
 def main():
@@ -31,38 +55,38 @@ def main():
         routes = list(csv.DictReader(f))
     codes = sorted({r["origin_country"] for r in routes} | {r["destination_country"] for r in routes})
 
-    url = API.format(codes=";".join(codes), indicator=INDICATOR)
-    # mrnev=1: the most recent year that actually has a value, for each country
-    response = requests.get(url, params={"format": "json", "mrnev": 1, "per_page": 400}, timeout=60)
-    response.raise_for_status()
-    payload = response.json()
-    if len(payload) < 2 or payload[1] is None:
-        raise SystemExit(f"Unexpected answer from the World Bank: {payload}")
+    rows = {code: {"iso2": code, "country": ""} for code in codes}
+    for column, indicator in INDICATORS.items():
+        for code, (name, value, year) in fetch(indicator, codes).items():
+            if code not in rows:
+                continue
+            rows[code]["country"] = name
+            rows[code][column] = round(value, 1) if column == "gini" else round(value)
+            rows[code][f"{column}_year"] = year
 
-    rows = []
-    for record in payload[1]:
-        if record.get("value") is None:
-            continue
-        rows.append({
-            "iso2": record["country"]["id"],
-            "country": record["country"]["value"],
-            "gni_per_capita_usd": round(record["value"]),
-            "year": record["date"],
-            "indicator": f"World Bank {INDICATOR} (GNI per capita, Atlas method, current US$)",
-            "retrieved_on": date.today().isoformat(),
-        })
-    rows.sort(key=lambda r: r["iso2"])
+    fields = ["iso2", "country"]
+    for column in INDICATORS:
+        fields += [column, f"{column}_year"]
+    fields += ["source", "retrieved_on"]
+    out = []
+    for code in codes:
+        row = rows[code]
+        row["source"] = "World Bank WDI: " + ", ".join(INDICATORS.values())
+        row["retrieved_on"] = date.today().isoformat()
+        out.append(row)
     with open(COUNTRIES_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(f, fieldnames=fields, restval="")
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(out)
 
-    missing = set(codes) - {r["iso2"] for r in rows}
-    print(f"Saved {len(rows)} countries to {COUNTRIES_CSV.relative_to(PROJECT_DIR)}")
-    for r in rows:
-        print(f"  {r['iso2']}  {r['country']:<28} {r['gni_per_capita_usd']:>8,} USD ({r['year']})")
+    print(f"Saved {len(out)} countries to {COUNTRIES_CSV.relative_to(PROJECT_DIR)}")
+    print(f"  {'':4}{'country':<26}{'GNI US$':>10}{'GNI PPP':>10}{'Gini':>7}")
+    for r in out:
+        print(f"  {r['iso2']:<4}{r['country'][:25]:<26}{r.get('gni_per_capita_usd', ''):>10}"
+              f"{r.get('gni_per_capita_ppp', ''):>10}{r.get('gini', ''):>7}")
+    missing = [r["iso2"] for r in out if "gni_per_capita_usd" not in r]
     if missing:
-        print("No data for: " + ", ".join(sorted(missing)))
+        print("No GNI data for: " + ", ".join(missing))
 
 
 if __name__ == "__main__":
