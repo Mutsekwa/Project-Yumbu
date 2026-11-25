@@ -72,7 +72,7 @@
   /* ---------- Filters: one row above everything they scope ---------- */
   .filters { display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: end; margin-bottom: 18px; }
   .filters label { display: block; font-size: 0.78rem; color: var(--ink-2); margin-bottom: 4px; }
-  .seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 7px; overflow: hidden; background: var(--surface); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--axis); border-radius: 7px; overflow: hidden; background: var(--surface); }
   .seg button { border: 0; background: transparent; color: var(--ink); font: inherit; padding: 6px 11px; cursor: pointer; }
   .seg button + button { border-left: 1px solid var(--axis); }
   .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
@@ -133,9 +133,9 @@
 
   <div class="status">
     <span id="status">Loading data…</span>
-    <button class="btn" id="pick">Load CSV files</button>
+    <button class="btn" id="pick" data-live-only>Load CSV files</button>
     <input type="file" id="files" accept=".csv" multiple class="hidden">
-    <button class="btn" id="demo">Show demo data</button>
+    <button class="btn" id="demo" data-live-only>Show demo data</button>
   </div>
   <div class="demo-banner hidden" id="banner">
     Synthetic demo data: invented fares and incomes for trying out the dashboard. Not real, do not cite.
@@ -154,7 +154,7 @@
       <label>Fare used</label>
       <div class="seg" id="faretype"></div>
     </div>
-    <div>
+    <div data-live-only>
       <label for="route">Route (fares over time)</label>
       <select id="route"></select>
     </div>
@@ -181,18 +181,18 @@
       <div class="legend" id="lg-weeks"></div>
       <div id="c-weeks"></div>
     </div>
-    <div class="card wide">
+    <div class="card wide" data-live-only>
       <h2 id="t-time">Fares over time</h2>
       <p class="desc">Each line is one booking horizon; a point is one weekly snapshot.</p>
       <div class="legend" id="lg-time"></div>
       <div id="c-time"></div>
     </div>
-    <div class="card">
+    <div class="card" data-live-only>
       <h2>Simulator: break-even load factor</h2>
       <p class="desc">Latest run of route_profitability.py per airline and route. Dashed line: 80%.</p>
       <div id="c-be"></div>
     </div>
-    <div class="card">
+    <div class="card" data-live-only>
       <h2>Simulator: cost of one flight</h2>
       <p class="desc">Estimated fixed cost per flight by component (EUR).</p>
       <div class="legend" id="lg-cost"></div>
@@ -770,7 +770,9 @@ function render() {
   const shown = stats.filter(s => s.n).sort((a, b) => groupOrder(a.route) - groupOrder(b.route) || b.centsPerKm - a.centsPerKm);
   if (!shown.length) return empty(wrap, noFares);
   const table = document.createElement("table");
-  const head = ["Route", "Region", "km", "Obs.", "Median fare", "¢ per km", "Nonstop airlines", "GNI / person", "Weeks (return)"];
+  const hasCarriers = shown.some(s => s.carriers !== null);   // older data has no competition count
+  const head = ["Route", "Region", "km", "Obs.", "Median fare", "¢ per km", "Nonstop airlines", "GNI / person", "Weeks (return)"]
+    .filter(h => hasCarriers || h !== "Nonstop airlines");
   const tr = document.createElement("tr");
   for (const h of head) { const th = document.createElement("th"); th.textContent = h; tr.appendChild(th); }
   table.appendChild(tr);
@@ -778,7 +780,7 @@ function render() {
     const row = document.createElement("tr");
     for (const v of [s.route.route_id, s.route.region, s.km ?? "–", s.n, s.median !== null ? usd(s.median) : "–",
                      s.centsPerKm !== null ? s.centsPerKm.toFixed(1) : "–",
-                     s.carriers !== null ? s.carriers : "–",
+                     ...(hasCarriers ? [s.carriers !== null ? s.carriers : "–"] : []),
                      s.gni ? usd(s.gni) : "–", s.weeks !== null ? s.weeks.toFixed(2) : "–"]) {
       const td = document.createElement("td"); td.textContent = v; row.appendChild(td);
     }
@@ -830,6 +832,19 @@ window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer
    9. START
    ===================================================================== */
 (async () => {
+  // A snapshot made by python/make_snapshot.py carries its data inside the page.
+  const snap = window.YUMBU_SNAPSHOT;
+  if (snap) {
+    for (const text of Object.values(snap.files)) store(parseCSV(text));
+    document.querySelectorAll("[data-live-only]").forEach(e => e.classList.add("hidden"));
+    setupFilters(); render();
+    const day = new Date(snap.date + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    document.querySelector("h1").textContent = `Project Yumbu: Fare Snapshot, ${day}`;
+    document.getElementById("status").textContent =
+      `One-way economy fares on ${state.routes.length} routes, collected from Google Flights on ${day}. ` +
+      "Use the buttons to change the comparison; hover over any bar or dot for details.";
+    return;
+  }
   const found = await loadFromServer();
   setupFilters(); render();
   document.getElementById("status").textContent = found ? statusText()

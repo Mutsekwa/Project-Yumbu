@@ -92,6 +92,7 @@ Downloads GNI per capita (World Bank, Atlas method) for every country in `data/r
 * **On GitHub Pages** (Settings → Pages → Deploy from branch → main → / root) it loads the CSV files automatically: `https://mutsekwa.github.io/Project-Yumbu/web/dashboard.html`
 * **On your laptop:** run `python -m http.server` in the project folder and open `http://localhost:8000/web/dashboard.html`, or open the file directly and click **Load CSV files**.
 * **Show demo data** fills it with clearly labelled synthetic numbers for testing. Never use those in the paper.
+* **Snapshot to share:** `python python/make_snapshot.py 2026-11-25` writes `web/snapshot-2026-11-25.html`, a single file with that day's data built in. It opens from an email attachment with no other files.
 
 ## 5. Profit calculator
 
